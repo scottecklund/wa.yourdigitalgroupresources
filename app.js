@@ -74,7 +74,7 @@ const METRIC_TIPS={
   backlinks:'Total individual links pointing to their site from across the web.',
   paid:'Whether they\u2019re currently running Google Ads. If yes, they\u2019re paying for clicks — a strong budget signal and a fit for dedicated landing pages.',
   money:'The search every month that should be bringing them customers. We check how many people search it and whether their site shows up at all.',
-  competitors:'The businesses winning the Google traffic in their space — directories like Yelp are filtered out so these are real rivals.',
+  competitors:'The businesses actually on page 1 of their money search — directories and national sites are filtered out, so these are the local rivals taking their customers.',
   rankedfor:'Searches where their site already appears, and at what position. Positions 4–20 are "almost there" — quick wins to pitch.',
   lh:'Four automated checks Google runs on the live site, scored 0–100: speed on a phone, accessibility, basic SEO hygiene, and code best practices.',
   speed:'How fast the site loads on a phone, per Google\u2019s Lighthouse test. Slow sites lose visitors before they ever call — and Google ranks them lower.',
@@ -180,10 +180,12 @@ function renderCompetitors(){
   if(!ah||!ah.competitors||!ah.competitors.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
   $('compHead').innerHTML='Who\u2019s winning instead '+infoIcon('competitors','competitors');
-  $('compBody').innerHTML=ah.competitors.map(c=>
-    '<div class="comp-row"><div class="comp-dom">'+esc(c.domain)+'</div>'
-    +'<div class="comp-meta">'+fmt(c.traffic)+' visits/mo \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'—')+'</div></div>'
-  ).join('');
+  $('compBody').innerHTML=ah.competitors.map(c=>{
+    const meta=c.position!=null
+      ?('#'+c.position+' for the money search \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'—'))
+      :(fmt(c.traffic)+' visits/mo \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'—'));
+    return '<div class="comp-row"><div class="comp-dom">'+esc(c.domain)+'</div><div class="comp-meta">'+meta+'</div></div>';
+  }).join('');
 }
 function renderRankedFor(){
   const box=$('rankedBox');
@@ -329,7 +331,8 @@ function buildReport(){
     if(lh.scores.a11y!=null)notes+=gap('Usable by all visitors',a11yIssues(),a11yIssues()?('Automated accessibility checks score the site '+lh.scores.a11y+' out of 100 — there are detectable issues that make it harder for some visitors to use.'):'');
   }
   const compHtml=comp.length?('<h3 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 6px;">Who\u2019s getting the traffic instead</h3>'
-    +comp.map(c=>'<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E7EAEF;font-size:13.5px;"><span>'+esc(c.domain)+'</span><span style="color:#5C6779;">'+fmt(c.traffic)+' visits/mo</span></div>').join('')):'';
+    +comp.map(c=>{const meta=c.position!=null?('#'+c.position+' in the search results'):(fmt(c.traffic)+' visits/mo');
+      return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E7EAEF;font-size:13.5px;"><span>'+esc(c.domain)+'</span><span style="color:#5C6779;">'+meta+'</span></div>';}).join('')):'';
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot — '+esc(biz)+'</title></head>'
     +'<body style="font-family:Helvetica,Arial,sans-serif;color:#18212F;max-width:640px;margin:40px auto;padding:0 24px;line-height:1.5;">'
     +'<div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:3px solid #18212F;padding-bottom:12px;">'
