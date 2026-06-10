@@ -189,7 +189,7 @@ function renderCompetitors(){
 }
 function renderRankedFor(){
   const box=$('rankedBox');
-  const rows=(ah&&ah.top_keywords||[]).filter(k=>k.volume!=null&&k.volume>0);
+  const rows=(ah&&ah.top_keywords||[]).filter(k=>k.keyword&&k.position!=null);
   if(!rows.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
   $('rankedHead').innerHTML='What they already rank for '+infoIcon('rankedfor','ranked keywords');
@@ -460,6 +460,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
+  const bt=$('buildTag');if(bt)bt.textContent='Build v9';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;
