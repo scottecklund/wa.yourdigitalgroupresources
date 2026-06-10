@@ -20,7 +20,11 @@
   .metric .tag{align-self:flex-start;margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px;}
   .metric .tag.weak{background:var(--bad-bg);color:var(--bad);}
   .metric .tag.ok{background:var(--go-bg);color:var(--go);}
+  .metric .tag.mid{background:var(--wait-bg);color:var(--wait);}
   .metric .tag.ads{background:var(--blue-bg);color:var(--blue);}
+  .readout.four{grid-template-columns:repeat(4,1fr);}
+  @media (max-width:680px){.readout.four{grid-template-columns:repeat(2,1fr);}}
+  .lh-loading{font-size:12.5px;color:var(--ink-soft);background:var(--skip-bg);border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:8px;line-height:1.45;}
   /* money / competitors / ranked-for */
   .subhead{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:18px 0 8px;display:flex;align-items:center;gap:6px;}
   .subhead .info{width:13px;height:13px;font-size:9px;text-transform:none;}
@@ -61,6 +65,8 @@
   .authmsg.err{color:var(--bad);} .authmsg.ok{color:var(--go);}
   .whoami{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft);}
   .whoami button{font-size:11.5px;padding:5px 10px;}
+  .linklike{background:none;border:none;color:var(--ink-soft);font-size:11.5px;text-decoration:underline;cursor:pointer;margin-top:10px;font-family:inherit;display:block;}
+  .linklike:hover{color:var(--ink);}
 </style>
 </head>
 <body>
@@ -68,11 +74,12 @@
 
   <!-- AUTH GATE -->
   <div id="authGate" class="card hidden">
-    <div class="card-head"><div class="brand"><div class="brandmark">MRR</div><div><span class="eyebrow">Sign in</span><h2>MRR Prospect Research</h2></div></div></div>
+    <div class="card-head"><div class="brand"><div class="brandmark">MRR</div><div><span class="eyebrow">Sign in</span><h2 id="gateTitle">MRR Prospect Research</h2></div></div></div>
     <div class="body">
-      <div class="field" style="margin-bottom:11px;"><label class="fl" for="email">Email</label><input id="email" type="email" placeholder="you@agency.com"></div>
+      <div class="field" id="emailRow" style="margin-bottom:11px;"><label class="fl" for="email">Email</label><input id="email" type="email" placeholder="you@agency.com"></div>
       <div class="field" style="margin-bottom:11px;"><label class="fl" for="password">Password</label><input id="password" type="password" placeholder="••••••••"></div>
       <button class="btn btn-blue" id="signinBtn" style="width:100%;">Sign in</button>
+      <button class="linklike hidden" id="useEmail" type="button">Sign in with an email account instead</button>
       <div class="authmsg" id="authMsg"></div>
     </div>
   </div>
@@ -83,7 +90,7 @@
       <div class="brand">
         <div class="brandmark">MRR</div>
         <div>
-          <h1>MRR Prospect Research</h1>
+          <h1 id="appTitle">MRR Prospect Research</h1>
           <p>Enter a client and website, run the audit, read the grade, draft the email, and save it to the team list.</p>
         </div>
       </div>
@@ -97,7 +104,7 @@
         <div class="howto-row"><span class="pill B">B</span><div><b>Secondary priority.</b> One of the two — website or SEO — is weak.</div></div>
         <div class="howto-row"><span class="pill C">C</span><div><b>Low priority.</b> Website and SEO both look solid, so there's little to sell.</div></div>
       </div>
-      <div class="howto-note">The audit checks two things: the <b>website</b> (age and mobile, pre-filled from their homepage) and <b>SEO</b> (authority, traffic, top-3 rankings, and whether they show up for their money search). Running Google Ads is a budget signal — and a cue to pitch landing pages.</div>
+      <div class="howto-note">The audit checks two things: the <b>website</b> (age, mobile, and Google's live mobile speed test) and <b>SEO</b> (authority, traffic, top-3 rankings, and whether they show up for their money search). Running Google Ads is a budget signal — and a cue to pitch landing pages. Low accessibility scores add an ADA pitch.</div>
     </div>
 
     <details class="settings">
@@ -107,7 +114,8 @@
           <div class="thresh"><label>SEO weak — authority below<small>site authority 0–100</small></label><input type="number" id="t_drWeak" value="20"></div>
           <div class="thresh"><label>SEO weak — traffic below<small>organic visits/mo</small></label><input type="number" id="t_trafficWeak" value="500"></div>
           <div class="thresh"><label>SEO weak — top-3 kw below<small>keywords ranking 1–3</small></label><input type="number" id="t_top3Weak" value="5"></div>
-          <div class="thresh"><label>Your agency name<small>signs the email &amp; report</small></label><input type="text" id="t_agency" placeholder="e.g. 44i Digital"></div>
+          <div class="thresh"><label>Website weak — mobile speed below<small>Google Lighthouse 0–100</small></label><input type="number" id="t_speedWeak" value="50"></div>
+          <div class="thresh"><label>Your agency name<small>signs the email &amp; report (a partner link overrides this)</small></label><input type="text" id="t_agency" placeholder="e.g. 44i Digital"></div>
         </div>
       </div>
     </details>
@@ -135,6 +143,11 @@
             <div class="card-head"><div><span class="eyebrow">Step 2 — Audit</span><h2>The findings</h2></div></div>
             <div class="body">
               <div class="readout" id="readout"></div>
+
+              <div class="hidden" id="lhBox">
+                <div class="subhead" id="lhHead"></div>
+                <div id="lhBody"></div>
+              </div>
 
               <div class="hidden" id="moneyBox">
                 <div class="subhead" id="moneyHead"></div>
