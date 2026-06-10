@@ -520,8 +520,12 @@ function exportXlsx(){
 /* ===== auth ===== */
 function showApp(){
   $('authGate').classList.add('hidden');$('app').classList.remove('hidden');
-  $('userEmail').textContent=session?.user?.email||'';
-  if(embedMode){const w=document.querySelector('.whoami');if(w)w.style.display='none';}
+  const em=session?.user?.email||'';
+  $('userEmail').textContent=em;
+  // machine accounts (embed + per-partner logins) never show account chrome
+  const machine=em.toLowerCase().endsWith('@'+PARTNER_AUTH_DOMAIN);
+  const w=document.querySelector('.whoami');
+  if(w)w.style.display=(embedMode||machine)?'none':'';
 }
 function showGate(msg){$('app').classList.add('hidden');$('authGate').classList.remove('hidden');if(msg){const m=$('authMsg');m.className='authmsg err';m.textContent=msg;}}
 async function signIn(){
@@ -566,7 +570,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v16';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v17';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;
