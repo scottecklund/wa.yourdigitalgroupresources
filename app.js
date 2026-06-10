@@ -29,6 +29,7 @@ let partner=null;            // {slug,name} — white-label partner from the ?p=
 const PARTNER_AUTH_DOMAIN='partners.yourdigitalgroupresources.com'; // internal usernames: slug@this
 let emailMode=false;         // staff escape hatch: sign in with a real email on a partner link
 let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
+let viewingSaved=null;       // a saved prospect opened from the team list (archive view)
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -284,6 +285,7 @@ async function runAudit(){
       }
     }
     skipDupCheck=false;
+    exitViewMode();
     setStatus('loading','<span class="spin"></span>Running the audit on '+esc(domain)+'… (10–20 seconds)');
     const {data,error}=await sb.functions.invoke('ahrefs-audit',{body:{url:domain,money_keyword:moneyTerm()}});
     if(error) throw new Error((data&&data.error)||error.message);
@@ -440,6 +442,7 @@ function buildReport(){
 
 /* ===== save + team list ===== */
 async function saveProspect(){
+  if(viewingSaved)return;
   const name=$('clientName').value.trim();if(!name){$('clientName').focus();return;}
   const sc=score();
   const row={client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
@@ -459,7 +462,39 @@ async function saveProspect(){
   loadRecent();
   setTimeout(()=>{btn.textContent='Save to team list';resetAudit();},900);
 }
+function exitViewMode(){
+  viewingSaved=null;
+  const b=$('viewBanner');if(b)b.classList.add('hidden');
+  const s=$('saveBtn');if(s)s.classList.remove('hidden');
+  const rn=$('repName');if(rn&&rn.closest('.field'))rn.closest('.field').classList.remove('hidden');
+}
+function openSaved(l){
+  viewingSaved=l;
+  lhToken++; // cancel any in-flight live test
+  $('clientName').value=l.client_name||'';
+  $('domain').value=l.domain||'';
+  $('city').value=l.city||'';
+  $('service').value=l.service||'';
+  const ex=l.extras||{};
+  ah={target:l.domain,dr:l.dr,org_traffic:l.org_traffic,org_keywords:l.org_keywords,org_keywords_1_3:l.org_keywords_1_3,
+    live_refdomains:l.live_refdomains,live_backlinks:l.live_backlinks,
+    paid_keywords:l.running_ads?1:0,paid_pages:null,
+    money:ex.money||null,competitors:ex.competitors||null,top_keywords:ex.top_keywords||null,site:ex.site||null};
+  Object.assign(sel,{age:l.site_age||'current',mobile:l.mobile||'yes'});auto.age=false;auto.mobile=false;
+  lh=ex.lighthouse?{status:'done',scores:ex.lighthouse}:{status:'idle',scores:null};
+  $('auditWrap').classList.remove('hidden');
+  render();clearStatus();
+  const when=l.created_at?new Date(l.created_at).toLocaleDateString():'';
+  $('viewBannerText').innerHTML='<b>Viewing saved audit</b> \u2014 '+esc(l.client_name||l.domain)
+    +(when?(', saved '+when):'')+(l.created_by_email?(' by '+esc(l.created_by_email)):'')
+    +'. The email and report below regenerate from this archive.';
+  $('viewBanner').classList.remove('hidden');
+  $('saveBtn').classList.add('hidden');
+  const rn=$('repName');if(rn&&rn.closest('.field'))rn.closest('.field').classList.add('hidden');
+  $('auditWrap').scrollIntoView({behavior:'smooth',block:'start'});
+}
 function resetAudit(){
+  exitViewMode();
   ['clientName','domain','city','service'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const es=$('emailSub'),eb=$('emailBody');if(es)es.value='';if(eb)eb.value='';
   ah=null;lh={status:'idle',scores:null};lhToken++;
@@ -489,6 +524,8 @@ function renderRecent(){
   $('savedEmpty').style.display=recent.length?'none':'block';
   view.forEach(l=>{
     const tr=document.createElement('tr');
+    tr.classList.add('rowlink');tr.title='Click to view the full saved audit';
+    tr.addEventListener('click',()=>openSaved(l));
     const miss=l.extras&&l.extras.money&&l.extras.money.volume&&l.extras.money.best_position==null;
     const lhs=l.extras&&l.extras.lighthouse;
     const mini='Auth '+(l.dr??'—')+' \u00B7 '+fmt(l.org_traffic)+'/mo'
@@ -567,6 +604,7 @@ function wire(){
   $('signinBtn').addEventListener('click',signIn);
   $('useEmail').addEventListener('click',()=>{emailMode=true;updateGateMode();$('email').focus();});
   $('password').addEventListener('keydown',e=>{if(e.key==='Enter')signIn();});
+  $('newAuditBtn').addEventListener('click',resetAudit);
   $('signoutBtn').addEventListener('click',async()=>{await sb.auth.signOut();session=null;showGate();});
 }
 
@@ -574,7 +612,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v18';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v19';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();

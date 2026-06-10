@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 <style>
   .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
@@ -48,6 +48,10 @@
   .kwtable tr:last-child td{border-bottom:none;}
   .kwtable .pos{font-family:'IBM Plex Mono',monospace;font-weight:600;}
   .kwtable .p-top{color:var(--go);} .kwtable .p-near{color:var(--wait);}
+  .viewbanner{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EEF2FF;border:1px solid #C9D4FF;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;}
+  .viewbanner.hidden{display:none;}
+  .rowlink{cursor:pointer;}
+  .rowlink:hover td{background:#F6F8FB;}
   .contact-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .contact-chip{font-size:12px;background:var(--skip-bg);border:1px solid var(--line-soft);border-radius:8px;padding:7px 11px;font-family:'IBM Plex Mono',monospace;}
   .autonote{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;color:var(--blue);text-transform:none;letter-spacing:0;}
@@ -141,6 +145,10 @@
     </div>
 
     <div class="hidden" id="auditWrap">
+      <div class="viewbanner hidden" id="viewBanner">
+        <div id="viewBannerText"></div>
+        <button class="ghost" id="newAuditBtn" style="white-space:nowrap;">Start new audit</button>
+      </div>
       <div class="grid">
         <div>
           <div class="card">
@@ -220,7 +228,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="config.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
