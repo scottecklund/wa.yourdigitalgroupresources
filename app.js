@@ -45,9 +45,9 @@ async function loadPartner(){
 }
 function applyPartnerBrand(){
   const name=partner.name;
-  document.title=name+' Prospect Research';
-  const gt=$('gateTitle');if(gt)gt.textContent=name+' Prospect Research';
-  const at=$('appTitle');if(at)at.textContent=name+' Prospect Research';
+  document.title=name+' MRR Prospect Research';
+  const gt=$('gateTitle');if(gt)gt.textContent=name+' MRR Prospect Research';
+  const at=$('appTitle');if(at)at.textContent=name+' MRR Prospect Research';
   updateGateMode();
 }
 function agencyName(fallback){return partner?partner.name:(settings().agency||fallback);}
@@ -566,7 +566,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v15';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v16';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;
