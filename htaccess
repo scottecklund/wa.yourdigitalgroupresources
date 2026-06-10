@@ -1,0 +1,15 @@
+# MRR Prospect Research — clean partner URLs (/titan, /kensington, ...)
+RewriteEngine On
+RewriteBase /
+
+# Drop any trailing slash so /titan/ becomes /titan
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.+)/$ /$1 [R=301,L]
+
+# Real files (index.html, app.js, styles.css, config.js) are served as-is
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else (a partner slug) loads the app
+RewriteRule ^ index.html [L]
