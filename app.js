@@ -28,7 +28,14 @@ let skipDupCheck=false;
 let partner=null;            // {slug,name} — white-label partner from the ?p= URL slug
 const PARTNER_AUTH_DOMAIN='partners.yourdigitalgroupresources.com'; // internal usernames: slug@this
 let emailMode=false;         // staff escape hatch: sign in with a real email on a partner link
-function partnerSlug(){const m=new URLSearchParams(location.search).get('p');return (m||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);}
+function partnerSlug(){
+  const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
+  const q=new URLSearchParams(location.search).get('p');
+  if(q)return clean(q);                                  // ?p=titan still works
+  const seg=location.pathname.split('/').filter(Boolean)[0]||'';
+  if(seg&&!seg.includes('.'))return clean(seg);           // /titan — ignore real files like index.html
+  return '';
+}
 async function loadPartner(){
   const slug=partnerSlug();if(!slug)return;
   const {data}=await sb.from('partners').select('slug,name').eq('slug',slug).maybeSingle();
@@ -37,9 +44,7 @@ async function loadPartner(){
 }
 function applyPartnerBrand(){
   const name=partner.name;
-  const initials=name.split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,3)||'•';
   document.title=name+' Prospect Research';
-  document.querySelectorAll('.brandmark').forEach(b=>b.textContent=initials);
   const gt=$('gateTitle');if(gt)gt.textContent=name+' Prospect Research';
   const at=$('appTitle');if(at)at.textContent=name+' Prospect Research';
   updateGateMode();
