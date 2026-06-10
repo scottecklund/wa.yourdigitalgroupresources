@@ -3,24 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ahrefs Au dit Tool</title>
+<title>MRR Prospect Research</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <style>
-  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
-  .metric{background:var(--skip-bg);border-radius:10px;padding:10px 11px;}
-  .metric .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
-  .metric .v{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:20px;margin-top:3px;}
-  .metric .v small{font-size:12px;font-weight:500;color:var(--ink-soft);}
-  .metric.seo-weak{background:var(--bad-bg);} .metric.seo-weak .v{color:var(--bad);}
-  .metric.seo-ok{background:var(--go-bg);} .metric.seo-ok .v{color:var(--go);}
-  .metric.flag-on{background:var(--blue-bg);} .metric.flag-on .v{color:var(--blue);}
+  .metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 13px;display:flex;flex-direction:column;transition:box-shadow .12s;}
+  .metric:hover{box-shadow:0 8px 20px -16px rgba(24,33,47,.5);}
+  .metric .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:5px;}
+  .metric .k .info{width:13px;height:13px;font-size:9px;text-transform:none;}
+  .metric .v{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:18px;margin-top:5px;color:var(--ink);line-height:1.15;letter-spacing:-.01em;}
+  .metric .v small{font-size:10.5px;font-weight:500;color:var(--ink-soft);letter-spacing:0;}
+  .metric .tag{align-self:flex-start;margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px;}
+  .metric .tag.weak{background:var(--bad-bg);color:var(--bad);}
+  .metric .tag.ok{background:var(--go-bg);color:var(--go);}
+  .metric .tag.ads{background:var(--blue-bg);color:var(--blue);}
+  /* money / competitors / ranked-for */
+  .subhead{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:18px 0 8px;display:flex;align-items:center;gap:6px;}
+  .subhead .info{width:13px;height:13px;font-size:9px;text-transform:none;}
+  .money{border-radius:12px;padding:13px 15px;border:1px solid var(--line);}
+  .money-miss{background:var(--bad-bg);border-color:#E6C4C0;}
+  .money-ok{background:var(--go-bg);border-color:#BFE0D2;}
+  .money-kw{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:17px;}
+  .money-stats{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+  .money-stats b{color:var(--ink);}
+  .money-verdict{font-size:13.5px;margin-top:7px;}
+  .money-miss .money-verdict b{color:var(--bad);}
+  .money-ok .money-verdict b{color:var(--go);}
+  .comp-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line-soft);}
+  .comp-row:last-child{border-bottom:none;}
+  .comp-dom{font-weight:600;font-size:13.5px;}
+  .comp-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);white-space:nowrap;}
+  .kwtable{width:100%;border-collapse:collapse;font-size:13px;}
+  .kwtable th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:5px 8px 5px 2px;border-bottom:1px solid var(--line-soft);font-weight:600;}
+  .kwtable td{padding:6px 8px 6px 2px;border-bottom:1px solid var(--line-soft);}
+  .kwtable tr:last-child td{border-bottom:none;}
+  .kwtable .pos{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .kwtable .p-top{color:var(--go);} .kwtable .p-near{color:var(--wait);}
+  .autonote{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;color:var(--blue);text-transform:none;letter-spacing:0;}
+  /* grading explainer */
+  .howto{background:var(--surface);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);padding:15px 18px;margin-bottom:16px;}
+  .howto-title{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);margin-bottom:12px;}
+  .howto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;}
+  @media(max-width:680px){.howto-grid{grid-template-columns:1fr;}}
+  .howto-row{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.45;color:var(--ink-soft);}
+  .howto-row b{color:var(--ink);font-weight:600;}
+  .howto-row .pill{flex-shrink:0;}
+  .howto-note{margin-top:13px;padding-top:12px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--ink-soft);}
+  .howto-note b{color:var(--ink);font-weight:600;}
   /* auth */
-  #authGate{max-width:380px;margin:8vh auto 0;}
-  #authGate .body{padding:20px;}
+  #authGate{max-width:392px;margin:9vh auto 0;}
+  #authGate .body{padding:22px;}
   .authmsg{font-size:12.5px;margin-top:10px;min-height:16px;}
   .authmsg.err{color:var(--bad);} .authmsg.ok{color:var(--go);}
   .whoami{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft);}
@@ -32,7 +68,7 @@
 
   <!-- AUTH GATE -->
   <div id="authGate" class="card hidden">
-    <div class="card-head"><div><span class="eyebrow">Sign in</span><h2>Ahrefs Audit Tool</h2></div></div>
+    <div class="card-head"><div class="brand"><div class="brandmark">MRR</div><div><span class="eyebrow">Sign in</span><h2>MRR Prospect Research</h2></div></div></div>
     <div class="body">
       <div class="field" style="margin-bottom:11px;"><label class="fl" for="email">Email</label><input id="email" type="email" placeholder="you@agency.com"></div>
       <div class="field" style="margin-bottom:11px;"><label class="fl" for="password">Password</label><input id="password" type="password" placeholder="••••••••"></div>
@@ -45,25 +81,33 @@
   <div id="app" class="hidden">
     <header>
       <div class="brand">
-        <h1>Ahrefs Audit Tool</h1>
-        <p>Enter a client and website, pull a full Ahrefs audit, grade it A/B/C, draft the email, and save to the team database.</p>
+        <div class="brandmark">MRR</div>
+        <div>
+          <h1>MRR Prospect Research</h1>
+          <p>Enter a client and website, run the audit, read the grade, draft the email, and save it to the team list.</p>
+        </div>
       </div>
       <div class="whoami"><span id="userEmail"></span><button class="ghost" id="signoutBtn">Sign out</button></div>
     </header>
+
+    <div class="howto">
+      <div class="howto-title">How the grade works</div>
+      <div class="howto-grid">
+        <div class="howto-row"><span class="pill A">A</span><div><b>Contact immediately.</b> Both the website and SEO are weak — the biggest opportunity.</div></div>
+        <div class="howto-row"><span class="pill B">B</span><div><b>Secondary priority.</b> One of the two — website or SEO — is weak.</div></div>
+        <div class="howto-row"><span class="pill C">C</span><div><b>Low priority.</b> Website and SEO both look solid, so there's little to sell.</div></div>
+      </div>
+      <div class="howto-note">The audit checks two things: the <b>website</b> (age and mobile, pre-filled from their homepage) and <b>SEO</b> (authority, traffic, top-3 rankings, and whether they show up for their money search). Running Google Ads is a budget signal — and a cue to pitch landing pages.</div>
+    </div>
 
     <details class="settings">
       <summary>Settings — thresholds &amp; your agency name</summary>
       <div class="settings-body">
         <div class="thresh-grid">
-          <div class="thresh"><label>SEO weak — DR below<small>domain rating 0–100</small></label><input type="number" id="t_drWeak" value="20"></div>
+          <div class="thresh"><label>SEO weak — authority below<small>site authority 0–100</small></label><input type="number" id="t_drWeak" value="20"></div>
           <div class="thresh"><label>SEO weak — traffic below<small>organic visits/mo</small></label><input type="number" id="t_trafficWeak" value="500"></div>
           <div class="thresh"><label>SEO weak — top-3 kw below<small>keywords ranking 1–3</small></label><input type="number" id="t_top3Weak" value="5"></div>
-          <div class="thresh"><label>Reviews — weak below<small>Google reviews</small></label><input type="number" id="t_revWeak" value="25"></div>
-          <div class="thresh"><label>Reviews — strong above<small>Google reviews</small></label><input type="number" id="t_revStrong" value="50"></div>
-          <div class="thresh"><label>Rating — weak below<small>stars out of 5</small></label><input type="number" id="t_ratWeak" value="4.0" step="0.1"></div>
-          <div class="thresh"><label>Rating — strong above<small>stars out of 5</small></label><input type="number" id="t_ratStrong" value="4.5" step="0.1"></div>
-          <div class="thresh"><label>Years — "established" at<small>can likely afford services</small></label><input type="number" id="t_years" value="5"></div>
-          <div class="thresh"><label>Your agency name<small>signs the email</small></label><input type="text" id="t_agency" placeholder="e.g. 44i Digital"></div>
+          <div class="thresh"><label>Your agency name<small>signs the email &amp; report</small></label><input type="text" id="t_agency" placeholder="e.g. 44i Digital"></div>
         </div>
       </div>
     </details>
@@ -74,11 +118,11 @@
         <div class="search-row">
           <div><label class="fl" for="clientName">Client name</label><input id="clientName" placeholder="Extreme Heating &amp; Cooling"></div>
           <div><label class="fl" for="domain">Website</label><input id="domain" placeholder="extreme605.com"></div>
-          <button class="btn btn-blue" id="auditBtn">Run Ahrefs audit</button>
+          <button class="btn btn-blue" id="auditBtn">Run audit</button>
         </div>
         <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr;">
-          <div><label class="fl" for="city">City / market <span class="mini">(for the email)</span></label><input id="city" placeholder="Sioux Falls"></div>
-          <div><label class="fl" for="service">Primary service <span class="mini">(for the email)</span></label><input id="service" placeholder="HVAC"></div>
+          <div><label class="fl" for="service">Primary service <span class="mini">(drives the money search)</span></label><input id="service" placeholder="HVAC"></div>
+          <div><label class="fl" for="city">City / market <span class="mini">(drives the money search)</span></label><input id="city" placeholder="Sioux Falls"></div>
         </div>
         <div class="status" id="status"></div>
       </div>
@@ -88,10 +132,26 @@
       <div class="grid">
         <div>
           <div class="card">
-            <div class="card-head"><div><span class="eyebrow">Step 2 — Ahrefs audit</span><h2>The findings</h2></div></div>
+            <div class="card-head"><div><span class="eyebrow">Step 2 — Audit</span><h2>The findings</h2></div></div>
             <div class="body">
               <div class="readout" id="readout"></div>
-              <p class="legend" style="margin-top:14px;">SEO and paid signals come straight from Ahrefs. The items below are quick checks Ahrefs can't see —
+
+              <div class="hidden" id="moneyBox">
+                <div class="subhead" id="moneyHead"></div>
+                <div id="moneyBody"></div>
+              </div>
+
+              <div class="hidden" id="compBox">
+                <div class="subhead" id="compHead"></div>
+                <div id="compBody"></div>
+              </div>
+
+              <div class="hidden" id="rankedBox">
+                <div class="subhead" id="rankedHead"></div>
+                <div id="rankedBody"></div>
+              </div>
+
+              <p class="legend" style="margin-top:16px;">Everything above is pulled automatically — tap any <b>i</b> to see what it means. The website checks below are pre-filled from their homepage; tap to override —
                 <span class="sw g"></span>strong <span class="sw a"></span>okay <span class="sw r"></span>weak. <b>Weak = an opportunity to pitch.</b></p>
               <div id="sections"></div>
             </div>
@@ -103,7 +163,8 @@
             <div class="stamp C" id="stamp"><div class="grade" id="grade">C</div><div class="label" id="action">Low priority</div></div>
             <p class="reason" id="reason"></p>
             <div class="pitch"><div class="lab">Services to pitch</div><div class="pitch-list" id="pitchList"></div></div>
-            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team database</button>
+            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team list</button>
+            <button class="ghost" id="reportBtn" style="margin-top:9px;width:100%;">Client report (print / PDF)</button>
           </div>
         </div>
       </div>
@@ -122,18 +183,19 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div><span class="eyebrow">Team database</span><h2>Recent audits, A leads first</h2></div>
-        <div class="list-actions"><input id="search" placeholder="Filter…"><button class="ghost" id="refreshBtn">Refresh</button><button class="ghost" id="exportBtn">Export CSV</button></div></div>
+      <div class="card-head"><div><span class="eyebrow">Team list</span><h2>Saved prospects</h2></div>
+        <div class="list-actions"><input id="search" placeholder="Filter…"><button class="ghost" id="refreshBtn">Refresh</button><button class="ghost" id="exportBtn">Export Excel</button></div></div>
       <table>
-        <thead><tr><th style="width:54px">Grade</th><th>Client</th><th>Ahrefs</th><th>Pitch</th><th style="width:36px"></th></tr></thead>
+        <thead><tr><th style="width:54px">Grade</th><th>Client</th><th>Metrics</th><th>Pitch</th><th style="width:36px"></th></tr></thead>
         <tbody id="savedRows"></tbody>
       </table>
-      <div class="empty" id="savedEmpty"><b>No audits saved yet</b>Run an audit and save it — the whole team will see it here.</div>
+      <div class="empty" id="savedEmpty"><b>No prospects saved yet</b>Run an audit and save it — the whole team will see it here.</div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
