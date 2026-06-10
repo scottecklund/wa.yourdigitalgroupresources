@@ -28,6 +28,7 @@ let skipDupCheck=false;
 let partner=null;            // {slug,name} — white-label partner from the ?p= URL slug
 const PARTNER_AUTH_DOMAIN='partners.yourdigitalgroupresources.com'; // internal usernames: slug@this
 let emailMode=false;         // staff escape hatch: sign in with a real email on a partner link
+let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -517,7 +518,11 @@ function exportXlsx(){
 }
 
 /* ===== auth ===== */
-function showApp(){$('authGate').classList.add('hidden');$('app').classList.remove('hidden');$('userEmail').textContent=session?.user?.email||'';}
+function showApp(){
+  $('authGate').classList.add('hidden');$('app').classList.remove('hidden');
+  $('userEmail').textContent=session?.user?.email||'';
+  if(embedMode){const w=document.querySelector('.whoami');if(w)w.style.display='none';}
+}
 function showGate(msg){$('app').classList.add('hidden');$('authGate').classList.remove('hidden');if(msg){const m=$('authMsg');m.className='authmsg err';m.textContent=msg;}}
 async function signIn(){
   const email=(partner&&!emailMode)?(partner.slug+'@'+PARTNER_AUTH_DOMAIN):$('email').value.trim();
@@ -561,7 +566,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v13';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v15';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;
@@ -571,7 +576,13 @@ function wire(){
     const k=new URLSearchParams(location.search).get('k');
     if(k){
       const r=await sb.auth.signInWithPassword({email:partner.slug+'@'+PARTNER_AUTH_DOMAIN,password:k});
-      if(!r.error)session=r.data.session;
+      if(!r.error){session=r.data.session;embedMode=true;}
+    }
+    // No key needed: one shared invisible account signs every partner page in silently.
+    // The slug on the URL decides whose branding shows and whose data is read/written.
+    if(!session&&window.EMBED_PASS){
+      const r=await sb.auth.signInWithPassword({email:'embed@'+PARTNER_AUTH_DOMAIN,password:window.EMBED_PASS});
+      if(!r.error){session=r.data.session;embedMode=true;}
     }
   }
   if(new URLSearchParams(location.search).get('k'))history.replaceState(null,'',location.pathname);
