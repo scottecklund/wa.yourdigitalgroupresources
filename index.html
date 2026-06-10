@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ahrefs Audit Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
+  .metric{background:var(--skip-bg);border-radius:10px;padding:10px 11px;}
+  .metric .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .metric .v{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:20px;margin-top:3px;}
+  .metric .v small{font-size:12px;font-weight:500;color:var(--ink-soft);}
+  .metric.seo-weak{background:var(--bad-bg);} .metric.seo-weak .v{color:var(--bad);}
+  .metric.seo-ok{background:var(--go-bg);} .metric.seo-ok .v{color:var(--go);}
+  .metric.flag-on{background:var(--blue-bg);} .metric.flag-on .v{color:var(--blue);}
+  /* auth */
+  #authGate{max-width:380px;margin:8vh auto 0;}
+  #authGate .body{padding:20px;}
+  .authmsg{font-size:12.5px;margin-top:10px;min-height:16px;}
+  .authmsg.err{color:var(--bad);} .authmsg.ok{color:var(--go);}
+  .whoami{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft);}
+  .whoami button{font-size:11.5px;padding:5px 10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- AUTH GATE -->
+  <div id="authGate" class="card hidden">
+    <div class="card-head"><div><span class="eyebrow">Sign in</span><h2>Ahrefs Audit Tool</h2></div></div>
+    <div class="body">
+      <div class="field" style="margin-bottom:11px;"><label class="fl" for="email">Email</label><input id="email" type="email" placeholder="you@agency.com"></div>
+      <div class="field" style="margin-bottom:11px;"><label class="fl" for="password">Password</label><input id="password" type="password" placeholder="••••••••"></div>
+      <button class="btn btn-blue" id="signinBtn" style="width:100%;">Sign in</button>
+      <div class="authmsg" id="authMsg"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header>
+      <div class="brand">
+        <h1>Ahrefs Audit Tool</h1>
+        <p>Enter a client and website, pull a full Ahrefs audit, grade it A/B/C, draft the email, and save to the team database.</p>
+      </div>
+      <div class="whoami"><span id="userEmail"></span><button class="ghost" id="signoutBtn">Sign out</button></div>
+    </header>
+
+    <details class="settings">
+      <summary>Settings — thresholds &amp; your agency name</summary>
+      <div class="settings-body">
+        <div class="thresh-grid">
+          <div class="thresh"><label>SEO weak — DR below<small>domain rating 0–100</small></label><input type="number" id="t_drWeak" value="20"></div>
+          <div class="thresh"><label>SEO weak — traffic below<small>organic visits/mo</small></label><input type="number" id="t_trafficWeak" value="500"></div>
+          <div class="thresh"><label>SEO weak — top-3 kw below<small>keywords ranking 1–3</small></label><input type="number" id="t_top3Weak" value="5"></div>
+          <div class="thresh"><label>Reviews — weak below<small>Google reviews</small></label><input type="number" id="t_revWeak" value="25"></div>
+          <div class="thresh"><label>Reviews — strong above<small>Google reviews</small></label><input type="number" id="t_revStrong" value="50"></div>
+          <div class="thresh"><label>Rating — weak below<small>stars out of 5</small></label><input type="number" id="t_ratWeak" value="4.0" step="0.1"></div>
+          <div class="thresh"><label>Rating — strong above<small>stars out of 5</small></label><input type="number" id="t_ratStrong" value="4.5" step="0.1"></div>
+          <div class="thresh"><label>Years — "established" at<small>can likely afford services</small></label><input type="number" id="t_years" value="5"></div>
+          <div class="thresh"><label>Your agency name<small>signs the email</small></label><input type="text" id="t_agency" placeholder="e.g. 44i Digital"></div>
+        </div>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="card-head"><div><span class="eyebrow">Step 1 — Client</span><h2>Who are we auditing?</h2></div></div>
+      <div class="body">
+        <div class="search-row">
+          <div><label class="fl" for="clientName">Client name</label><input id="clientName" placeholder="Extreme Heating &amp; Cooling"></div>
+          <div><label class="fl" for="domain">Website</label><input id="domain" placeholder="extreme605.com"></div>
+          <button class="btn btn-blue" id="auditBtn">Run Ahrefs audit</button>
+        </div>
+        <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr;">
+          <div><label class="fl" for="city">City / market <span class="mini">(for the email)</span></label><input id="city" placeholder="Sioux Falls"></div>
+          <div><label class="fl" for="service">Primary service <span class="mini">(for the email)</span></label><input id="service" placeholder="HVAC"></div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+
+    <div class="hidden" id="auditWrap">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <div class="card-head"><div><span class="eyebrow">Step 2 — Ahrefs audit</span><h2>The findings</h2></div></div>
+            <div class="body">
+              <div class="readout" id="readout"></div>
+              <p class="legend" style="margin-top:14px;">SEO and paid signals come straight from Ahrefs. The items below are quick checks Ahrefs can't see —
+                <span class="sw g"></span>strong <span class="sw a"></span>okay <span class="sw r"></span>weak. <b>Weak = an opportunity to pitch.</b></p>
+              <div id="sections"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card verdict-card">
+          <div class="card-head"><div><span class="eyebrow">Step 3 — Grade</span><h2>Verdict</h2></div></div>
+          <div class="body">
+            <div class="stamp C" id="stamp"><div class="grade" id="grade">C</div><div class="label" id="action">Low priority</div></div>
+            <p class="reason" id="reason"></p>
+            <div class="pitch"><div class="lab">Services to pitch</div><div class="pitch-list" id="pitchList"></div></div>
+            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team database</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><span class="eyebrow">Step 4 — Solicitation</span><h2>Outreach email</h2></div>
+          <button class="ghost" id="genEmail">Generate from findings</button></div>
+        <div class="body email-body">
+          <label class="fl" for="emailSub">Subject</label>
+          <input class="email-sub" id="emailSub">
+          <label class="fl" for="emailBody">Message — teases the findings without giving everything away</label>
+          <textarea id="emailBody"></textarea>
+          <div class="email-actions"><button class="ghost" id="copyEmail">Copy email</button><span class="copied" id="copied">Copied</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><span class="eyebrow">Team database</span><h2>Recent audits, A leads first</h2></div>
+        <div class="list-actions"><input id="search" placeholder="Filter…"><button class="ghost" id="refreshBtn">Refresh</button><button class="ghost" id="exportBtn">Export CSV</button></div></div>
+      <table>
+        <thead><tr><th style="width:54px">Grade</th><th>Client</th><th>Ahrefs</th><th>Pitch</th><th style="width:36px"></th></tr></thead>
+        <tbody id="savedRows"></tbody>
+      </table>
+      <div class="empty" id="savedEmpty"><b>No audits saved yet</b>Run an audit and save it — the whole team will see it here.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
