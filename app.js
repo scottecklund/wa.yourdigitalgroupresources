@@ -190,6 +190,10 @@ function renderCompetitors(){
     return '<div class="comp-row"><div class="comp-dom">'+esc(c.domain)+'</div><div class="comp-meta">'+meta+'</div></div>';
   }).join('');
 }
+function savedBy(v){
+  if(!v)return '';
+  return String(v).toLowerCase().endsWith('@'+PARTNER_AUTH_DOMAIN)?'':String(v);
+}
 function fmtPhone(p){
   if(!p)return p;
   const d=String(p).replace(/\D/g,'');
@@ -278,7 +282,7 @@ async function runAudit(){
       if(dup){
         const when=new Date(dup.created_at).toLocaleDateString();
         setStatus('error','<b>Already audited.</b> '+esc(dup.client_name)+' was graded <b>'+esc(dup.grade)+'</b> on '+when
-          +(dup.created_by_email?(' by '+esc(dup.created_by_email)):'')
+          +(savedBy(dup.created_by_email)?(' by '+esc(savedBy(dup.created_by_email))):'')
           +' — it\u2019s in the team list below. <button class="ghost" id="auditAnyway" style="margin-left:8px;">Audit anyway</button>');
         $('auditAnyway').addEventListener('click',()=>{skipDupCheck=true;clearStatus();runAudit();});
         btn.disabled=false;return;
@@ -447,7 +451,7 @@ async function saveProspect(){
   const sc=score();
   const row={client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
     city:$('city').value.trim(),service:$('service').value.trim(),
-    created_by_email:(function(){const r=$('repName');const v=r?r.value.trim():'';if(v)localStorage.setItem('mrr_rep',v);return v||session?.user?.email||null;})(),
+    created_by_email:(function(){const r=$('repName');const v=r?r.value.trim():'';if(v)localStorage.setItem('mrr_rep',v);return v||savedBy(session?.user?.email)||null;})(),
     dr:ah?.dr??null,org_traffic:ah?.org_traffic??null,org_keywords:ah?.org_keywords??null,org_keywords_1_3:ah?.org_keywords_1_3??null,
     live_refdomains:ah?.live_refdomains??null,live_backlinks:ah?.live_backlinks??null,running_ads:adsRunning(),
     site_age:sel.age,mobile:sel.mobile,grade:sc.grade,action:sc.action,pitch:pitchList(sc),partner:partner?partner.slug:null,
@@ -486,7 +490,7 @@ function openSaved(l){
   render();clearStatus();
   const when=l.created_at?new Date(l.created_at).toLocaleDateString():'';
   $('viewBannerText').innerHTML='<b>Viewing saved audit</b> \u2014 '+esc(l.client_name||l.domain)
-    +(when?(', saved '+when):'')+(l.created_by_email?(' by '+esc(l.created_by_email)):'')
+    +(when?(', saved '+when):'')+(savedBy(l.created_by_email)?(' by '+esc(savedBy(l.created_by_email))):'')
     +'. The email and report below regenerate from this archive.';
   $('viewBanner').classList.remove('hidden');
   $('saveBtn').classList.add('hidden');
@@ -516,7 +520,7 @@ async function loadRecent(){
 function teamView(){
   const list=[...recent].sort((a,b)=>(ORDER[a.grade]??9)-(ORDER[b.grade]??9)||new Date(b.created_at)-new Date(a.created_at));
   const q=$('search').value.trim().toLowerCase();
-  return list.filter(l=>!q||((l.client_name||'')+' '+(l.city||'')+' '+(l.service||'')+' '+(l.created_by_email||'')).toLowerCase().includes(q));
+  return list.filter(l=>!q||((l.client_name||'')+' '+(l.city||'')+' '+(l.service||'')+' '+savedBy(l.created_by_email)).toLowerCase().includes(q));
 }
 function renderRecent(){
   const view=teamView();
@@ -547,7 +551,7 @@ function exportXlsx(){
     return [l.client_name||'',l.domain||'',l.city||'',l.service||'',fmtPhone(ct.phone)||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',
       m.keyword||'',m.volume??'',(m.volume!=null?(m.best_position!=null?('#'+m.best_position):'Not found'):''),
       lhs.perf??'',lhs.a11y??'',lhs.seo??'',lhs.best??'',
-      l.partner||'',(l.pitch||[]).join('; '),l.created_by_email||'',l.created_at||''];});
+      l.partner||'',(l.pitch||[]).join('; '),savedBy(l.created_by_email),l.created_at||''];});
   const aoa=[['Prospect List'],[],head,...rows];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:24},{wch:24},{wch:14},{wch:12},{wch:15},{wch:26},{wch:32},{wch:7},{wch:18},{wch:10},{wch:10},{wch:10},{wch:8},{wch:17},{wch:10},{wch:12},{wch:22},{wch:11},{wch:10},{wch:12},{wch:13},{wch:11},{wch:13},{wch:12},{wch:30},{wch:24},{wch:22}];
@@ -612,7 +616,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v19';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v20';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
