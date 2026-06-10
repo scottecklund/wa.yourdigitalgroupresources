@@ -444,7 +444,7 @@ async function saveProspect(){
   const sc=score();
   const row={client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
     city:$('city').value.trim(),service:$('service').value.trim(),
-    created_by_email:session?.user?.email||null,
+    created_by_email:(function(){const r=$('repName');const v=r?r.value.trim():'';if(v)localStorage.setItem('mrr_rep',v);return v||session?.user?.email||null;})(),
     dr:ah?.dr??null,org_traffic:ah?.org_traffic??null,org_keywords:ah?.org_keywords??null,org_keywords_1_3:ah?.org_keywords_1_3??null,
     live_refdomains:ah?.live_refdomains??null,live_backlinks:ah?.live_backlinks??null,running_ads:adsRunning(),
     site_age:sel.age,mobile:sel.mobile,grade:sc.grade,action:sc.action,pitch:pitchList(sc),partner:partner?partner.slug:null,
@@ -478,10 +478,13 @@ async function loadRecent(){
   if(error){console.error(error);return;}
   recent=data||[];renderRecent();
 }
-function renderRecent(){
+function teamView(){
   const list=[...recent].sort((a,b)=>(ORDER[a.grade]??9)-(ORDER[b.grade]??9)||new Date(b.created_at)-new Date(a.created_at));
   const q=$('search').value.trim().toLowerCase();
-  const view=list.filter(l=>!q||((l.client_name||'')+' '+(l.city||'')+' '+(l.service||'')).toLowerCase().includes(q));
+  return list.filter(l=>!q||((l.client_name||'')+' '+(l.city||'')+' '+(l.service||'')+' '+(l.created_by_email||'')).toLowerCase().includes(q));
+}
+function renderRecent(){
+  const view=teamView();
   const rows=$('savedRows');rows.innerHTML='';
   $('savedEmpty').style.display=recent.length?'none':'block';
   view.forEach(l=>{
@@ -501,7 +504,7 @@ function renderRecent(){
 }
 function exportXlsx(){
   if(!recent.length)return;
-  const list=[...recent].sort((a,b)=>(ORDER[a.grade]??9)-(ORDER[b.grade]??9));
+  const list=teamView();
   const head=['Client','Website','City','Service','Phone','Email','Address','Grade','Action','Authority','Traffic','Keywords','Top 3','Referring domains','Backlinks','Paid search','Money search','Searches/mo','Their rank','Mobile speed','Accessibility','Google SEO','Best practices','Partner','Pitch','Saved by','Saved at'];
   const rows=list.map(l=>{const m=(l.extras&&l.extras.money)||{};const lhs=(l.extras&&l.extras.lighthouse)||{};const ct=(l.extras&&l.extras.site&&l.extras.site.contact)||{};
     return [l.client_name||'',l.domain||'',l.city||'',l.service||'',fmtPhone(ct.phone)||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',
@@ -514,7 +517,8 @@ function exportXlsx(){
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:head.length-1}}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Prospect List');
-  XLSX.writeFile(wb,'prospect-list.xlsx');
+  const q=$('search').value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  XLSX.writeFile(wb,q?('prospect-list-'+q+'.xlsx'):'prospect-list.xlsx');
 }
 
 /* ===== auth ===== */
@@ -570,7 +574,8 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v17';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v18';
+  const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;

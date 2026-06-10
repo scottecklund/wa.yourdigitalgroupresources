@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 <style>
   .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
@@ -185,7 +185,8 @@
             <div class="stamp C" id="stamp"><div class="grade" id="grade">C</div><div class="label" id="action">Low priority</div></div>
             <p class="reason" id="reason"></p>
             <div class="pitch"><div class="lab">Services to pitch</div><div class="pitch-list" id="pitchList"></div></div>
-            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team list</button>
+            <div class="field" style="margin-top:14px;max-width:260px;"><label class="fl" for="repName">Saved by — your name</label><input id="repName" placeholder="e.g., Jamie"></div>
+            <button class="btn btn-dark" id="saveBtn" style="margin-top:10px;">Save to team list</button>
             <button class="ghost" id="reportBtn" style="margin-top:9px;width:100%;">Client report (print / PDF)</button>
           </div>
         </div>
@@ -206,7 +207,7 @@
 
     <div class="card">
       <div class="card-head"><div><span class="eyebrow">Team list</span><h2>Saved prospects</h2></div>
-        <div class="list-actions"><input id="search" placeholder="Filter…"><button class="ghost" id="refreshBtn">Refresh</button><button class="ghost" id="exportBtn">Export Excel</button></div></div>
+        <div class="list-actions"><input id="search" placeholder="Filter — client, city, or rep name…"><button class="ghost" id="refreshBtn">Refresh</button><button class="ghost" id="exportBtn">Export Excel</button></div></div>
       <table>
         <thead><tr><th style="width:54px">Grade</th><th>Client</th><th>Metrics</th><th>Pitch</th><th style="width:36px"></th></tr></thead>
         <tbody id="savedRows"></tbody>
@@ -219,7 +220,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="config.js?v=18"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>
