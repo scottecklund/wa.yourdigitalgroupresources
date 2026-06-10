@@ -188,6 +188,12 @@ function renderCompetitors(){
     return '<div class="comp-row"><div class="comp-dom">'+esc(c.domain)+'</div><div class="comp-meta">'+meta+'</div></div>';
   }).join('');
 }
+function fmtPhone(p){
+  if(!p)return p;
+  const d=String(p).replace(/\D/g,'');
+  const n=(d.length===11&&d[0]==='1')?d.slice(1):d;
+  return n.length===10?('('+n.slice(0,3)+') '+n.slice(3,6)+'-'+n.slice(6)):p;
+}
 function renderContact(){
   const box=$('contactBox');
   const c=ah&&ah.site&&ah.site.contact;
@@ -195,7 +201,7 @@ function renderContact(){
   box.classList.remove('hidden');
   $('contactHead').innerHTML='Contact info on their site '+infoIcon('contact','contact info');
   const chip=v=>'<span class="contact-chip">'+esc(v)+'</span>';
-  $('contactBody').innerHTML='<div class="contact-grid">'+[c.phone,c.email,c.address].filter(Boolean).map(chip).join('')+'</div>';
+  $('contactBody').innerHTML='<div class="contact-grid">'+[fmtPhone(c.phone),c.email,c.address].filter(Boolean).map(chip).join('')+'</div>';
 }
 function renderRankedFor(){
   const box=$('rankedBox');
@@ -448,8 +454,19 @@ async function saveProspect(){
   if(error&&/extras/.test(error.message||'')){delete row.extras;({error}=await sb.from('prospects').insert(row));}
   btn.disabled=false;
   if(error){btn.textContent='Save failed';console.error(error);setTimeout(()=>btn.textContent='Save to team list',1500);return;}
-  btn.textContent='Saved \u2713';setTimeout(()=>btn.textContent='Save to team list',1200);
+  btn.textContent='Saved \u2713';
   loadRecent();
+  setTimeout(()=>{btn.textContent='Save to team list';resetAudit();},900);
+}
+function resetAudit(){
+  ['clientName','domain','city','service'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  const es=$('emailSub'),eb=$('emailBody');if(es)es.value='';if(eb)eb.value='';
+  ah=null;lh={status:'idle',scores:null};lhToken++;
+  Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;skipDupCheck=false;
+  $('auditWrap').classList.add('hidden');
+  clearStatus();
+  window.scrollTo({top:0,behavior:'smooth'});
+  $('clientName').focus();
 }
 
 let recent=[];const ORDER={A:0,B:1,C:2};
@@ -486,7 +503,7 @@ function exportXlsx(){
   const list=[...recent].sort((a,b)=>(ORDER[a.grade]??9)-(ORDER[b.grade]??9));
   const head=['Client','Website','City','Service','Phone','Email','Address','Grade','Action','Authority','Traffic','Keywords','Top 3','Referring domains','Backlinks','Paid search','Money search','Searches/mo','Their rank','Mobile speed','Accessibility','Google SEO','Best practices','Partner','Pitch','Saved by','Saved at'];
   const rows=list.map(l=>{const m=(l.extras&&l.extras.money)||{};const lhs=(l.extras&&l.extras.lighthouse)||{};const ct=(l.extras&&l.extras.site&&l.extras.site.contact)||{};
-    return [l.client_name||'',l.domain||'',l.city||'',l.service||'',ct.phone||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',
+    return [l.client_name||'',l.domain||'',l.city||'',l.service||'',fmtPhone(ct.phone)||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',
       m.keyword||'',m.volume??'',(m.volume!=null?(m.best_position!=null?('#'+m.best_position):'Not found'):''),
       lhs.perf??'',lhs.a11y??'',lhs.seo??'',lhs.best??'',
       l.partner||'',(l.pitch||[]).join('; '),l.created_by_email||'',l.created_at||''];});
@@ -544,9 +561,19 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v11';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v13';
   await loadPartner();
   const {data}=await sb.auth.getSession();
   session=data.session;
+  // Embedded mode: a partner link can carry ?k=<password> for silent sign-in,
+  // so the tool works inside an already-protected members area with no login screen
+  if(!session&&partner){
+    const k=new URLSearchParams(location.search).get('k');
+    if(k){
+      const r=await sb.auth.signInWithPassword({email:partner.slug+'@'+PARTNER_AUTH_DOMAIN,password:k});
+      if(!r.error)session=r.data.session;
+    }
+  }
+  if(new URLSearchParams(location.search).get('k'))history.replaceState(null,'',location.pathname);
   if(session)onSignedIn(); else showGate();
 })();
