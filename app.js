@@ -74,6 +74,7 @@ const METRIC_TIPS={
   keywords:'How many Google searches they show up for, and how many of those land in the top 3 spots — where almost all the clicks go.',
   refdomains:'How many different websites link to them. More linking sites means more trust with Google.',
   backlinks:'Total individual links pointing to their site from across the web.',
+  platform:'Whether the site runs on WordPress. WordPress sites are a fit for Targeted Landing Pages \u2014 non-WordPress sites are not, so don\u2019t pitch TLPs there.',
   paid:'Whether they\u2019re currently running Google Ads. If yes, they\u2019re paying for clicks — a strong budget signal and a fit for dedicated landing pages.',
   money:'The search every month that should be bringing them customers. We check how many people search it and whether their site shows up at all.',
   competitors:'The businesses actually on page 1 of their money search — directories and national sites are filtered out, so these are the local rivals taking their customers.',
@@ -107,6 +108,7 @@ function buildSections(){
 }
 
 /* ===== scoring ===== */
+function isWordpress(){return !!(ah&&ah.site&&ah.site.wordpress);}
 function adsRunning(){return ah && ((ah.paid_keywords||0)>0 || (ah.paid_pages||0)>0);}
 function moneyMiss(){return !!(ah&&ah.money&&ah.money.volume!=null&&ah.money.volume>0&&ah.money.best_position==null);}
 function speedWeakFlag(){return lh.status==='done'&&lh.scores&&lh.scores.perf!=null&&lh.scores.perf<settings().speedWeak;}
@@ -126,7 +128,7 @@ function pitchList(s){const out=[];
   if(s.weak.includes('seo'))out.push('SEO');
   if(speedWeakFlag())out.push('Site speed');
   if(a11yIssues())out.push('ADA / accessibility');
-  if(adsRunning())out.push('Targeted landing pages');
+  if(isWordpress())out.push('Targeted landing pages');
   return out;}
 function reasonText(s){const gaps=gapLabels(s.weak);const ads=adsRunning()?' They\u2019re already running Google Ads, so there\u2019s budget to work with.':'';
   const miss=moneyMiss()?' They\u2019re invisible for their money search — the clearest proof point you have.':'';
@@ -229,7 +231,9 @@ function render(){
      +metricCard('Keywords',fmt(ah.org_keywords),(ah.org_keywords_1_3!=null?(ah.org_keywords_1_3+' in top 3'):''),(ah.org_keywords_1_3!=null?(kwW?'Weak':'OK'):''),(kwW?'weak':'ok'),'keywords')
      +metricCard('Referring domains',fmt(ah.live_refdomains),'','','','refdomains')
      +metricCard('Backlinks',fmt(ah.live_backlinks),'','','','backlinks')
-     +metricCard('Paid search',(ads?'Running ads':'None'),(ads&&ah.paid_pages?(ah.paid_pages+' '+(ah.paid_pages===1?'page':'pages')):''),(ads?'Budget signal':''),'ads','paid');
+     +metricCard('Paid search',(ads?'Running ads':'None'),(ads&&ah.paid_pages?(ah.paid_pages+' '+(ah.paid_pages===1?'page':'pages')):''),(ads?'Budget signal':''),'ads','paid')
+     +(function(){const wp=(ah.site&&typeof ah.site.wordpress==='boolean')?ah.site.wordpress:null;
+        return metricCard('Platform',(wp===true?'WordPress':(wp===false?'Not WordPress':'\u2014')),(ah.site&&ah.site.generator&&wp!==true?esc(String(ah.site.generator).split(' ')[0]):''),(wp===true?'TLP fit':''),(wp===true?'ok':''),'platform');})();
     renderLH();renderContact();renderMoney();renderCompetitors();renderRankedFor();
   }
   const sectionsEl=$('sections');
@@ -357,7 +361,7 @@ function buildEmail(){
   let ps=null;
   if(ah&&ah.top_keywords&&ah.top_keywords.some(k=>k.position>3&&k.position<=20))
     ps='your site is sitting just outside the top results on a few searches \u2014 those are the quickest wins on the list';
-  else if(adsRunning())
+  else if(adsRunning()&&isWordpress())
     ps='I can see you\u2019re paying for Google Ads, and there\u2019s a fix that makes every one of those ad dollars work harder';
   if(ps)body+='\n\nP.S. One more thing I spotted: '+ps+'. Happy to show you on the call.';
   $('emailBody').value=body;
@@ -546,15 +550,15 @@ function renderRecent(){
 function exportXlsx(){
   if(!recent.length)return;
   const list=teamView();
-  const head=['Client','Website','City','Service','Phone','Email','Address','Grade','Action','Authority','Traffic','Keywords','Top 3','Referring domains','Backlinks','Paid search','Money search','Searches/mo','Their rank','Mobile speed','Accessibility','Google SEO','Best practices','Partner','Pitch','Saved by','Saved at'];
+  const head=['Client','Website','City','Service','Phone','Email','Address','Grade','Action','Authority','Traffic','Keywords','Top 3','Referring domains','Backlinks','Paid search','WordPress','Money search','Searches/mo','Their rank','Mobile speed','Accessibility','Google SEO','Best practices','Partner','Pitch','Saved by','Saved at'];
   const rows=list.map(l=>{const m=(l.extras&&l.extras.money)||{};const lhs=(l.extras&&l.extras.lighthouse)||{};const ct=(l.extras&&l.extras.site&&l.extras.site.contact)||{};
-    return [l.client_name||'',l.domain||'',l.city||'',l.service||'',fmtPhone(ct.phone)||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',
+    return [l.client_name||'',l.domain||'',l.city||'',l.service||'',fmtPhone(ct.phone)||'',ct.email||'',ct.address||'',l.grade||'',l.action||'',l.dr??'',l.org_traffic??'',l.org_keywords??'',l.org_keywords_1_3??'',l.live_refdomains??'',l.live_backlinks??'',l.running_ads?'Running ads':'None',(l.extras&&l.extras.site&&typeof l.extras.site.wordpress==='boolean'?(l.extras.site.wordpress?'Yes':'No'):''),
       m.keyword||'',m.volume??'',(m.volume!=null?(m.best_position!=null?('#'+m.best_position):'Not found'):''),
       lhs.perf??'',lhs.a11y??'',lhs.seo??'',lhs.best??'',
       l.partner||'',(l.pitch||[]).join('; '),savedBy(l.created_by_email),l.created_at||''];});
   const aoa=[['Prospect List'],[],head,...rows];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:24},{wch:24},{wch:14},{wch:12},{wch:15},{wch:26},{wch:32},{wch:7},{wch:18},{wch:10},{wch:10},{wch:10},{wch:8},{wch:17},{wch:10},{wch:12},{wch:22},{wch:11},{wch:10},{wch:12},{wch:13},{wch:11},{wch:13},{wch:12},{wch:30},{wch:24},{wch:22}];
+  ws['!cols']=[{wch:24},{wch:24},{wch:14},{wch:12},{wch:15},{wch:26},{wch:32},{wch:7},{wch:18},{wch:10},{wch:10},{wch:10},{wch:8},{wch:17},{wch:10},{wch:12},{wch:11},{wch:22},{wch:11},{wch:10},{wch:12},{wch:13},{wch:11},{wch:13},{wch:12},{wch:30},{wch:24},{wch:22}];
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:head.length-1}}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Prospect List');
@@ -616,7 +620,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v20';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v21';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();

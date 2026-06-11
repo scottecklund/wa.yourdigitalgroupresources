@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <style>
   .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
@@ -136,9 +136,10 @@
           <div><label class="fl" for="domain">Website</label><input id="domain" placeholder="extreme605.com"></div>
           <button class="btn btn-blue" id="auditBtn">Run audit</button>
         </div>
-        <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr;">
+        <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr 1fr;">
           <div><label class="fl" for="service">Primary service <span class="mini">(drives the money search)</span></label><input id="service" placeholder="HVAC"></div>
           <div><label class="fl" for="city">City / market <span class="mini">(drives the money search)</span></label><input id="city" placeholder="Sioux Falls"></div>
+          <div><label class="fl" for="repName">Your name <span class="mini">(stamps your saves)</span></label><input id="repName" placeholder="e.g., Jamie"></div>
         </div>
         <div class="status" id="status"></div>
       </div>
@@ -193,8 +194,7 @@
             <div class="stamp C" id="stamp"><div class="grade" id="grade">C</div><div class="label" id="action">Low priority</div></div>
             <p class="reason" id="reason"></p>
             <div class="pitch"><div class="lab">Services to pitch</div><div class="pitch-list" id="pitchList"></div></div>
-            <div class="field" style="margin-top:14px;max-width:260px;"><label class="fl" for="repName">Saved by — your name</label><input id="repName" placeholder="e.g., Jamie"></div>
-            <button class="btn btn-dark" id="saveBtn" style="margin-top:10px;">Save to team list</button>
+            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team list</button>
             <button class="ghost" id="reportBtn" style="margin-top:9px;width:100%;">Client report (print / PDF)</button>
           </div>
         </div>
@@ -228,7 +228,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=20"></script>
-<script src="app.js?v=20"></script>
+<script src="config.js?v=21"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>
