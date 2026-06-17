@@ -497,6 +497,7 @@ function buildReport(){
     ok:!seoWeak(),
     service:'SEO',
     priority:moneyMissReport?1:(seoWeak()?2:99),
+    lead:'Customers searching'+where+' are finding competitors first, not '+esc(biz)+'.',
     problem:moneyMissReport
       ?('About '+fmt(m.volume)+' people search \u201C'+esc(m.keyword)+'\u201D every month, and '+esc(biz)+' doesn\u2019t appear in those results at all.')
       :(seoWeak()?'The site appears for very few of the searches customers'+where+' actually type into Google.':'The site shows up where it counts.'),
@@ -508,6 +509,7 @@ function buildReport(){
     ok:sel.age==='current',
     service:'Website',
     priority:3,
+    lead:'A dated site costs trust at first glance and ranking with Google.',
     problem:sel.age!=='current'?'The design and content look several years old.':'',
     why:sel.age!=='current'?('A dated site quietly tells every visitor the business may be behind the times \u2014 and first impressions decide whether someone calls or hits the back button. Google also trusts and ranks fresher, well-maintained sites higher, so an old site costs visibility on top of credibility.'):'',
     fix:sel.age!=='current'?('A new website \u2014 modern, fast, and built to convert \u2014 gives '+esc(biz)+' instant credibility the moment a customer lands, and gives Google a reason to rank it higher.'):''
@@ -517,6 +519,7 @@ function buildReport(){
     ok:sel.mobile==='yes',
     service:'Website',
     priority:2,
+    lead:'Most customers search on phones, and the site struggles there.',
     problem:sel.mobile!=='yes'?'The site struggles on phone screens.':'',
     why:sel.mobile!=='yes'?('Most local customers search on their phone. If the site is hard to read or tap, they don\u2019t struggle through it \u2014 they bounce and call the next business in the list. That\u2019s revenue walking out the door on the most common device people use.'):'',
     fix:sel.mobile!=='yes'?('A new website built mobile-first works perfectly on the device most customers actually use \u2014 so the phone calls land with '+esc(biz)+' instead of a competitor.'):''
@@ -526,6 +529,7 @@ function buildReport(){
     ok:!a11yIssues(),
     service:'ADA / accessibility',
     priority:a11yIssues()?2:99,
+    lead:'Accessibility gaps turn away customers and create real legal exposure.',
     problem:a11yIssues()?('Automated testing scores accessibility '+s.a11y+' out of 100, flagging issues like missing image descriptions, low color contrast, and unlabeled forms.'):'',
     why:a11yIssues()?('Two costs here. First, customers who use screen readers or other assistive technology simply can\u2019t use the site \u2014 that\u2019s business turned away. Second, and bigger: an inaccessible site is real legal exposure. ADA website lawsuits and demand letters against small businesses have become common, and the business almost always pays to settle \u2014 often far more than it would have cost to fix.'):'',
     fix:a11yIssues()?('An accessibility (ADA) remediation pass fixes the flagged issues \u2014 cutting the legal risk and opening the site to every potential customer. A new website from us is built ADA-compliant from the ground up.'):''
@@ -557,7 +561,7 @@ function buildReport(){
     const ranked=[...gaps].sort((a,b)=>a.priority-b.priority);
     const items=ranked.map((f,i)=>'<div style="display:flex;gap:11px;align-items:flex-start;padding:8px 0;'+(i<ranked.length-1?('border-bottom:1px solid '+ln+';'):'')+'">'
       +'<div style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:'+ink+';color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(i+1)+'</div>'
-      +'<div style="font-size:12.5px;line-height:1.45;"><b>'+f.label+'</b>'+(f.why?(' \u2014 <span style="color:'+soft+';">'+f.why.split('.')[0]+'.</span>'):'')+'</div></div>').join('');
+      +'<div style="font-size:12.5px;line-height:1.45;"><b>'+f.label+'</b>'+(f.lead?(' \u2014 <span style="color:'+soft+';">'+f.lead+'</span>'):'')+'</div></div>').join('');
     priorityHtml='<div style="background:'+blueBg+';border:1px solid #C9D4FF;border-radius:14px;padding:16px 18px;margin:18px 0;">'
       +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+blue+';font-weight:800;margin-bottom:4px;">Where to start</div>'
       +'<div style="font-size:12.5px;color:'+soft+';margin-bottom:10px;">In order of impact on your phone ringing:</div>'
