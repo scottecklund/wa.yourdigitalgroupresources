@@ -30,6 +30,8 @@ const PARTNER_AUTH_DOMAIN='partners.yourdigitalgroupresources.com'; // internal 
 let emailMode=false;         // staff escape hatch: sign in with a real email on a partner link
 let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
 let viewingSaved=null;       // a saved prospect opened from the team list (archive view)
+let compDismissed=[];        // domains the rep X'd out of "Who's winning" (persists in extras)
+const COMP_SHOW=3;           // how many competitors to display at once; the rest backfill
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -77,7 +79,7 @@ const METRIC_TIPS={
   platform:'Whether the site runs on WordPress. WordPress sites are a fit for Targeted Landing Pages \u2014 non-WordPress sites are not, so don\u2019t pitch TLPs there.',
   paid:'Whether they\u2019re currently running Google Ads. If yes, they\u2019re paying for clicks — a strong budget signal and a fit for dedicated landing pages.',
   money:'The search every month that should be bringing them customers. We check how many people search it and whether their site shows up at all.',
-  competitors:'The businesses actually on page 1 of their money search — directories and national sites are filtered out, so these are the local rivals taking their customers.',
+  competitors:'The businesses on page 1 of their money search. We show the top 3 \u2014 if one is a national site or directory you can\u2019t realistically beat, X it out and the next strongest local rival takes its place.',
   contact:'Phone, email, and address pulled from their website (homepage or contact page). Best-effort — give it a quick glance before outreach.',
   rankedfor:'Searches where their site already appears, and at what position. Positions 4–20 are "almost there" — quick wins to pitch.',
   lh:'Four automated checks Google runs on the live site, scored 0–100: speed on a phone, accessibility, basic SEO hygiene, and code best practices.',
@@ -180,17 +182,49 @@ function renderMoney(){
       :'Their site was <b>not found</b> in the results for this search.')+'</div>'
     +'</div>';
 }
+/* The full competitor list minus any the rep X'd out. The audit may return more
+   than we show — we display COMP_SHOW at a time and backfill from the rest as
+   competitors are dismissed. (If the audit only returns 3, dismissing simply
+   shows fewer; bump the result count in the ahrefs-audit edge function to feed
+   the backfill.) */
+function liveCompetitors(){
+  if(!ah||!ah.competitors)return [];
+  return ah.competitors.filter(c=>!compDismissed.includes(c.domain));
+}
 function renderCompetitors(){
   const box=$('compBox');
-  if(!ah||!ah.competitors||!ah.competitors.length){box.classList.add('hidden');return;}
+  const all=(ah&&ah.competitors)||[];
+  if(!all.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
+  const survivors=liveCompetitors();
+  const shown=survivors.slice(0,COMP_SHOW);
+  const heldBack=survivors.length-shown.length;
   $('compHead').innerHTML='Who\u2019s winning instead '+infoIcon('competitors','competitors');
-  $('compBody').innerHTML=ah.competitors.map(c=>{
+  if(!shown.length){
+    $('compBody').innerHTML='<div style="font-size:12.5px;color:var(--ink-soft);padding:8px 2px;">'
+      +'All competitors dismissed. <button class="linklike" id="compReset" style="display:inline;margin:0;">Restore the list</button></div>';
+    $('compReset').addEventListener('click',()=>{compDismissed=[];render();});
+    return;
+  }
+  const rows=shown.map(c=>{
     const meta=c.position!=null
-      ?('#'+c.position+' for the money search \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'—'))
-      :(fmt(c.traffic)+' visits/mo \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'—'));
-    return '<div class="comp-row"><div class="comp-dom">'+esc(c.domain)+'</div><div class="comp-meta">'+meta+'</div></div>';
+      ?('#'+c.position+' for the money search \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'\u2014'))
+      :(fmt(c.traffic)+' visits/mo \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'\u2014'));
+    return '<div class="comp-row" data-dom="'+esc(c.domain)+'">'
+      +'<div class="comp-dom">'+esc(c.domain)+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">'
+      +'<span class="comp-meta">'+meta+'</span>'
+      +'<button class="del comp-x" data-dom="'+esc(c.domain)+'" aria-label="Remove '+esc(c.domain)+'" title="Can\u2019t compete with this one? Remove it \u2014 the next one takes its place.">\u00D7</button>'
+      +'</div></div>';
   }).join('');
+  const note=heldBack>0
+    ?('<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:\'IBM Plex Mono\',monospace;">Showing top '+shown.length+' \u00B7 '+heldBack+' more ready to take their place if you remove one.</div>')
+    :(compDismissed.length?'<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;"><button class="linklike" id="compReset" style="display:inline;margin:0;">Restore dismissed competitors</button></div>':'');
+  $('compBody').innerHTML=rows+note;
+  $('compBody').querySelectorAll('.comp-x').forEach(b=>b.addEventListener('click',()=>{
+    const d=b.dataset.dom;if(!compDismissed.includes(d))compDismissed.push(d);render();
+  }));
+  const reset=$('compReset');if(reset)reset.addEventListener('click',()=>{compDismissed=[];render();});
 }
 function savedBy(v){
   if(!v)return '';
@@ -299,6 +333,7 @@ async function runAudit(){
     if(error) throw new Error((data&&data.error)||error.message);
     if(data&&data.error) throw new Error(data.error);
     ah=data;
+    compDismissed=[];
     // pre-fill the site checks from the homepage inspection
     Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;
     if(ah.site&&ah.site.fetched){
@@ -373,27 +408,97 @@ function buildReport(){
   const agency=agencyName('Your Agency');
   const biz=$('clientName').value.trim()||ah.target;
   const city=$('city').value.trim();
-  const m=ah.money,comp=ah.competitors||[],s=(lh.status==='done')?lh.scores:null;
+  const service=$('service').value.trim();
+  const m=ah.money,comp=liveCompetitors().slice(0,COMP_SHOW),s=(lh.status==='done')?lh.scores:null;
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  const ink='#18212F',soft='#5C6779',ln='#E7EAEF',bad='#BC4338',badBg='#FBF0EF',go='#13795A',goBg='#EEF6F2',wait='#A8650F',blue='#2D4EF5';
+  const ink='#18212F',soft='#5C6779',ln='#E7EAEF',bad='#BC4338',badBg='#FBF0EF',go='#13795A',goBg='#EEF6F2',wait='#A8650F',waitBg='#FBF4E8',blue='#2D4EF5',blueBg='#EEF2FF';
   const clamp=v=>Math.max(2,Math.min(100,v||0));
   const bar=(label,val,sub,color,track)=>'<div style="margin:9px 0;"><div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:4px;"><span style="font-weight:700;">'+esc(label)+'</span><span style="color:'+soft+';font-size:11.5px;">'+sub+'</span></div>'
     +'<div style="height:10px;background:'+(track||'#EEF0F4')+';border-radius:6px;overflow:hidden;"><div style="height:100%;width:'+clamp(val)+'%;background:'+color+';border-radius:6px;"></div></div></div>';
   const lhColor=v=>v==null?'#C7CCD6':(v<50?bad:(v<90?wait:go));
-  const pill=(ok)=>'<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:'+(ok?goBg:badBg)+';color:'+(ok?go:bad)+';">'+(ok?'Looks good':'Needs attention')+'</span>';
+  const pill=(ok)=>'<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:20px;white-space:nowrap;background:'+(ok?goBg:badBg)+';color:'+(ok?go:bad)+';">'+(ok?'Looks good':'Needs attention')+'</span>';
+  const money=moneyValue();
+  const where=city?(' in '+esc(city)):'';
+  const svc=service?esc(service.toLowerCase()):'their service';
 
-  // findings checklist
+  /* ---- findings: each carries a plain-language WHY and a WHAT-WE'D-DO, so a
+        rep who doesn't live in digital can still explain and sell it ---- */
+  const findings=[]; // {label, ok, problem, why, fix, priority}
+  const moneyMissReport=m&&m.volume!=null&&m.best_position==null;
+  findings.push({
+    label:'Showing up on Google',
+    ok:!seoWeak(),
+    priority:moneyMissReport?1:(seoWeak()?2:99),
+    problem:moneyMissReport
+      ?('About '+fmt(m.volume)+' people search \u201C'+esc(m.keyword)+'\u201D every month, and '+esc(biz)+' doesn\u2019t appear in those results at all.')
+      :(seoWeak()?'The site appears for very few of the searches customers'+where+' actually type into Google.':'The site shows up where it counts.'),
+    why:seoWeak()?'When people search for '+svc+where+', they call whoever they find first. If '+esc(biz)+' isn\u2019t on that first page, those calls go to a competitor \u2014 every day, automatically.':'',
+    fix:seoWeak()?'Get the site found for the searches that actually bring in customers \u2014 the listings, content, and on-page work that move it onto page one.':''
+  });
+  findings.push({
+    label:'Website freshness',
+    ok:sel.age==='current',
+    priority:3,
+    problem:sel.age!=='current'?'The design and content look several years old.':'',
+    why:sel.age!=='current'?'A dated site quietly tells visitors the business may be behind the times \u2014 and Google tends to trust fresher, well-kept sites more.':'',
+    fix:sel.age!=='current'?'A modern refresh that builds instant trust and gives Google a reason to rank it higher.':''
+  });
+  findings.push({
+    label:'Works well on phones',
+    ok:sel.mobile==='yes',
+    priority:2,
+    problem:sel.mobile!=='yes'?'The site struggles on phone screens.':'',
+    why:sel.mobile!=='yes'?'Most local customers search on their phone. If the site is hard to read or tap, they bounce and call the next business instead.':'',
+    fix:sel.mobile!=='yes'?'A mobile-first build so the site works perfectly on the device most customers actually use.':''
+  });
+  if(s&&s.perf!=null)findings.push({
+    label:'Loads fast on phones',
+    ok:!speedWeakFlag(),
+    priority:2,
+    problem:speedWeakFlag()?('Google\u2019s own speed test scores the site '+s.perf+' out of 100 on a phone.'):'',
+    why:speedWeakFlag()?'Slow pages lose visitors before they ever see the phone number \u2014 most people leave a page that takes more than three seconds. Google also pushes slow sites down the rankings.':'',
+    fix:speedWeakFlag()?'Speed work so pages load fast, hold the visitor, and rank better.':''
+  });
+  if(s&&s.a11y!=null)findings.push({
+    label:'Accessibility & ADA risk',
+    ok:!a11yIssues(),
+    priority:a11yIssues()?2:99,
+    problem:a11yIssues()?('Automated testing scores accessibility '+s.a11y+' out of 100, flagging issues like missing image descriptions, low color contrast, and unlabeled forms.'):'',
+    why:a11yIssues()?'Beyond shutting out customers who use screen readers or other assistive tech, an inaccessible site is a real legal exposure \u2014 ADA website lawsuits and demand letters against small businesses have become common, and the business usually pays to settle.':'',
+    fix:a11yIssues()?'An accessibility pass that fixes the flagged issues \u2014 reducing legal risk and opening the site to every customer.':''
+  });
+
+  const gaps=findings.filter(f=>!f.ok);
+  const gapsCount=gaps.length;
+
+  // findings checklist (detailed)
   let checks='';
-  const row=(label,okFlag,note)=>{checks+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:11px 0;border-bottom:1px solid '+ln+';"><div><div style="font-weight:700;font-size:13.5px;">'+label+'</div>'+(note?'<div style="color:'+soft+';font-size:12px;margin-top:2px;max-width:46ch;">'+note+'</div>':'')+'</div>'+pill(okFlag)+'</div>';};
-  row('Showing up on Google',!seoWeak(),
-    (m&&m.volume!=null&&m.best_position==null)
-      ?('About '+fmt(m.volume)+' people search \u201C'+esc(m.keyword)+'\u201D every month \u2014 your site doesn\u2019t appear in those results.')
-      :(seoWeak()?'Your site appears for very few of the searches customers in your area use.':'Your site shows up where it counts.'));
-  row('Website freshness',sel.age==='current',sel.age!=='current'?'The design and content appear several years old \u2014 it affects both trust and ranking.':'');
-  row('Works well on phones',sel.mobile==='yes',sel.mobile!=='yes'?'Most local customers search on a phone, and the site struggles on mobile screens.':'');
-  if(s&&s.perf!=null)row('Loads fast on phones',!speedWeakFlag(),speedWeakFlag()?('Google\u2019s mobile speed test scores the site '+s.perf+' out of 100. Slow pages lose visitors before they call.'):'');
-  if(s&&s.a11y!=null)row('Usable by all visitors',!a11yIssues(),a11yIssues()?('Automated checks score accessibility at '+s.a11y+' out of 100 \u2014 fixable issues that make the site harder for some visitors to use.'):'');
-  const gapsCount=(checks.match(/Needs attention/g)||[]).length;
+  findings.forEach(f=>{
+    checks+='<div style="padding:13px 0;border-bottom:1px solid '+ln+';">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">'
+      +'<div style="font-weight:700;font-size:14px;">'+f.label+'</div>'+pill(f.ok)+'</div>';
+    if(!f.ok){
+      if(f.problem)checks+='<div style="color:'+ink+';font-size:12.5px;margin-top:6px;max-width:60ch;">'+f.problem+'</div>';
+      if(f.why)checks+='<div style="font-size:12px;margin-top:7px;max-width:60ch;"><span style="color:'+bad+';font-weight:700;">Why this matters:</span> <span style="color:'+soft+';">'+f.why+'</span></div>';
+      if(f.fix)checks+='<div style="font-size:12px;margin-top:4px;max-width:60ch;"><span style="color:'+go+';font-weight:700;">What we\u2019d do:</span> <span style="color:'+soft+';">'+f.fix+'</span></div>';
+    }else if(f.problem){
+      checks+='<div style="color:'+soft+';font-size:12px;margin-top:4px;">'+f.problem+'</div>';
+    }
+    checks+='</div>';
+  });
+
+  // priority summary box — tells the rep exactly what to lead with
+  let priorityHtml='';
+  if(gapsCount){
+    const ranked=[...gaps].sort((a,b)=>a.priority-b.priority);
+    const items=ranked.map((f,i)=>'<div style="display:flex;gap:11px;align-items:flex-start;padding:8px 0;'+(i<ranked.length-1?('border-bottom:1px solid '+ln+';'):'')+'">'
+      +'<div style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:'+ink+';color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(i+1)+'</div>'
+      +'<div style="font-size:12.5px;line-height:1.45;"><b>'+f.label+'</b>'+(f.why?(' \u2014 <span style="color:'+soft+';">'+f.why.split('.')[0]+'.</span>'):'')+'</div></div>').join('');
+    priorityHtml='<div style="background:'+blueBg+';border:1px solid #C9D4FF;border-radius:14px;padding:16px 18px;margin:18px 0;">'
+      +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+blue+';font-weight:800;margin-bottom:4px;">Where to start</div>'
+      +'<div style="font-size:12.5px;color:'+soft+';margin-bottom:10px;">In order of impact on your phone ringing:</div>'
+      +items+'</div>';
+  }
 
   // money feature panel
   let moneyHtml='';
@@ -409,6 +514,7 @@ function buildReport(){
       +stat(ranks?('#'+m.best_position):'Not found','your position')
       +'</div>'
       +'<div style="font-size:13px;margin-top:12px;">'+(ranks?'Your site appears at <b>#'+m.best_position+'</b> for this search.':'Your website <b>does not appear</b> in these results \u2014 every one of those searches is finding someone else.')+'</div>'
+      +((!ranks&&money&&m.cpc)?('<div style="font-size:12.5px;margin-top:8px;color:'+ink+';border-top:1px solid '+(ranks?'#CDE5DA':'#F0D4D0')+';padding-top:9px;">Put a dollar figure on it: at what advertisers pay per click, that\u2019s roughly <b>$'+fmt(money)+' a month</b> in traffic Google is handing out '+where+' \u2014 just not to you.</div>'):'')
       +'</div>';
   }
 
@@ -417,7 +523,7 @@ function buildReport(){
   if(comp.length){
     const yourDr=Math.round(ah.dr||0);
     compHtml='<h3 style="font-size:14px;margin:24px 0 4px;">Who\u2019s winning the search</h3>'
-      +'<p style="color:'+soft+';font-size:12px;margin:0 0 10px;">Site authority, 0\u2013100 \u2014 Google\u2019s trust in each website. Longer bar = harder to outrank.</p>'
+      +'<p style="color:'+soft+';font-size:12px;margin:0 0 10px;">Site authority, 0\u2013100 \u2014 Google\u2019s trust in each website. The longer the bar, the harder they are to outrank. These are the businesses showing up'+where+' instead of you.</p>'
       +bar('Your site \u2014 '+esc(ah.target),yourDr,'authority '+yourDr,bad,badBg)
       +comp.map(c=>bar(c.domain,Math.round(c.dr||0),(c.position!=null?('#'+c.position+' in results \u00B7 '):'')+'authority '+(c.dr!=null?Math.round(c.dr):'\u2014'),blue)).join('');
   }
@@ -427,22 +533,29 @@ function buildReport(){
   if(s){
     const items=[['Mobile speed',s.perf],['Accessibility',s.a11y],['SEO checks',s.seo],['Best practices',s.best]];
     healthHtml='<h3 style="font-size:14px;margin:24px 0 4px;">Site health \u2014 Google\u2019s live tests</h3>'
-      +'<p style="color:'+soft+';font-size:12px;margin:0 0 10px;">Scored 0\u2013100 by Google. Under 50 needs work; 90+ is healthy.</p>'
+      +'<p style="color:'+soft+';font-size:12px;margin:0 0 10px;">Google scores every site 0\u2013100 on these. Under 50 needs work; 90+ is healthy.</p>'
       +items.filter(x=>x[1]!=null).map(x=>bar(x[0],x[1],x[1]+' / 100',lhColor(x[1]))).join('');
   }
 
+  // closing / next steps — hands the rep the call-to-action language
+  const nextHtml='<div style="background:'+ink+';color:#fff;border-radius:14px;padding:18px 20px;margin:24px 0 0;">'
+    +'<div style="font-size:14px;font-weight:800;margin-bottom:6px;">What happens next</div>'
+    +'<div style="font-size:12.5px;opacity:.85;line-height:1.55;max-width:60ch;">This is a quick outside-in look \u2014 the kind of thing a customer sees before they ever call. '
+    +(gapsCount?('There\u2019s a clear fix behind each of the '+gapsCount+' item'+(gapsCount===1?'':'s')+' flagged above.'):'The fundamentals look strong, and there\u2019s always room to push from solid to dominant.')
+    +' A 15-minute call is all it takes to walk through what closing these gaps would mean for your calls and leads \u2014 no charge, no pressure.</div></div>';
+
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot \u2014 '+esc(biz)+'</title>'
-    +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}</style></head><body>'
+    +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}h3{break-after:avoid;}</style></head><body>'
     +'<div style="background:'+ink+';color:#fff;border-radius:14px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;">'
     +'<div><div style="font-size:20px;font-weight:800;letter-spacing:-.01em;">Website Snapshot</div>'
     +'<div style="font-size:12px;opacity:.75;margin-top:3px;">Prepared for '+esc(biz)+(city?(' \u00B7 '+esc(city)):'')+' \u00B7 '+today+'</div></div>'
     +'<div style="font-size:13px;font-weight:700;opacity:.9;text-align:right;">'+esc(agency)+'</div></div>'
     +'<p style="font-size:13px;color:'+soft+';margin:16px 0 0;">We looked at '+esc(biz)+' the way a customer searching Google would \u2014 here\u2019s what we found. '
     +(gapsCount?('<b style="color:'+ink+';">'+gapsCount+' '+(gapsCount===1?'opportunity':'opportunities')+'</b> stood out.'):'Things look strong.')+'</p>'
-    +moneyHtml+compHtml+healthHtml
-    +'<h3 style="font-size:14px;margin:24px 0 2px;">What we checked</h3>'+checks
-    +'<p style="margin-top:22px;font-size:13px;">This is a quick outside-in snapshot \u2014 there\u2019s a fix behind every item above. We\u2019d be glad to walk you through what closing these gaps would do for your calls and leads.</p>'
-    +'<p style="font-size:13.5px;font-weight:700;">\u2014 '+esc(agency)+'</p>'
+    +priorityHtml+moneyHtml+compHtml+healthHtml
+    +'<h3 style="font-size:14px;margin:24px 0 2px;">What we checked, and what it means for you</h3>'+checks
+    +nextHtml
+    +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>'
     +'<script>window.print();<\/script></body></html>';
   const w=window.open('','_blank');if(!w){alert('Allow pop-ups to generate the report.');return;}
   w.document.write(html);w.document.close();
@@ -459,7 +572,7 @@ async function saveProspect(){
     dr:ah?.dr??null,org_traffic:ah?.org_traffic??null,org_keywords:ah?.org_keywords??null,org_keywords_1_3:ah?.org_keywords_1_3??null,
     live_refdomains:ah?.live_refdomains??null,live_backlinks:ah?.live_backlinks??null,running_ads:adsRunning(),
     site_age:sel.age,mobile:sel.mobile,grade:sc.grade,action:sc.action,pitch:pitchList(sc),partner:partner?partner.slug:null,
-    extras:{money:ah?.money??null,competitors:ah?.competitors??null,top_keywords:ah?.top_keywords??null,site:ah?.site??null,
+    extras:{money:ah?.money??null,competitors:ah?.competitors??null,competitors_dismissed:compDismissed.slice(),top_keywords:ah?.top_keywords??null,site:ah?.site??null,
       lighthouse:(lh.status==='done'?lh.scores:null)}};
   const btn=$('saveBtn');btn.disabled=true;btn.textContent='Saving…';
   let {error}=await sb.from('prospects').insert(row);
@@ -489,6 +602,7 @@ function openSaved(l){
     paid_keywords:l.running_ads?1:0,paid_pages:null,
     money:ex.money||null,competitors:ex.competitors||null,top_keywords:ex.top_keywords||null,site:ex.site||null};
   Object.assign(sel,{age:l.site_age||'current',mobile:l.mobile||'yes'});auto.age=false;auto.mobile=false;
+  compDismissed=Array.isArray(ex.competitors_dismissed)?ex.competitors_dismissed.slice():[];
   lh=ex.lighthouse?{status:'done',scores:ex.lighthouse}:{status:'idle',scores:null};
   $('auditWrap').classList.remove('hidden');
   render();clearStatus();
@@ -505,7 +619,7 @@ function resetAudit(){
   exitViewMode();
   ['clientName','domain','city','service'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const es=$('emailSub'),eb=$('emailBody');if(es)es.value='';if(eb)eb.value='';
-  ah=null;lh={status:'idle',scores:null};lhToken++;
+  ah=null;lh={status:'idle',scores:null};lhToken++;compDismissed=[];
   Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;skipDupCheck=false;
   $('auditWrap').classList.add('hidden');
   clearStatus();
