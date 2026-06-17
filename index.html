@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=21">
+<link rel="stylesheet" href="styles.css?v=22">
 <style>
   .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
@@ -112,7 +112,7 @@
         <div class="howto-row"><span class="pill B">B</span><div><b>Secondary priority.</b> One of the two — website or SEO — is weak.</div></div>
         <div class="howto-row"><span class="pill C">C</span><div><b>Low priority.</b> Website and SEO both look solid, so there's little to sell.</div></div>
       </div>
-      <div class="howto-note">The audit checks two things: the <b>website</b> (age, mobile, and Google's live mobile speed test) and <b>SEO</b> (authority, traffic, top-3 rankings, and whether they show up for their money search). Running Google Ads is a budget signal — and a cue to pitch landing pages. Low accessibility scores add an ADA pitch.</div>
+      <div class="howto-note">The audit checks two things: the <b>website</b> (age, mobile, and Google's live mobile speed test) and <b>SEO</b> (authority, traffic, top-3 rankings, and whether they show up for their money searches). Each money search you enter is tested separately. Running Google Ads is a budget signal — and a cue to pitch landing pages. Low accessibility scores add an ADA pitch.</div>
     </div>
 
     <details class="settings">
@@ -136,10 +136,20 @@
           <div><label class="fl" for="domain">Website</label><input id="domain" placeholder="extreme605.com"></div>
           <button class="btn btn-blue" id="auditBtn">Run audit</button>
         </div>
-        <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr 1fr;">
-          <div><label class="fl" for="service">Primary service <span class="mini">(drives the money search)</span></label><input id="service" placeholder="HVAC"></div>
-          <div><label class="fl" for="city">City / market <span class="mini">(drives the money search)</span></label><input id="city" placeholder="Sioux Falls"></div>
+        <div class="search-row" style="margin-top:11px;grid-template-columns:1fr 1fr;">
+          <div><label class="fl" for="city">City / market <span class="mini">(added to each search below)</span></label><input id="city" placeholder="Sioux Falls"></div>
           <div><label class="fl" for="repName">Your name <span class="mini">(stamps your saves)</span></label><input id="repName" placeholder="e.g., Jamie"></div>
+        </div>
+        <div style="margin-top:13px;">
+          <label class="fl">Money searches <span class="mini">(one service per line — we test each one separately)</span></label>
+          <div id="kwRows">
+            <div class="kw-row" style="display:flex;gap:7px;align-items:center;">
+              <input class="kw-input" placeholder="e.g., HVAC repair" style="flex:1;">
+              <button class="ghost kw-del" type="button" title="Remove this keyword" style="padding:8px 11px;visibility:hidden;">&times;</button>
+            </div>
+          </div>
+          <button class="ghost" id="addKwBtn" type="button" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;">+ Add another search</button>
+          <div class="mini" style="margin-top:6px;line-height:1.4;">Each line is one search a customer would type. The city is added automatically, so <b>HVAC repair</b> becomes <b>hvac repair sioux falls</b>. Up to 5. You can also paste several separated by commas.</div>
         </div>
         <div class="status" id="status"></div>
       </div>
@@ -228,7 +238,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=21"></script>
-<script src="app.js?v=21"></script>
+<script src="config.js?v=22"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>
