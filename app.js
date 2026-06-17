@@ -30,7 +30,7 @@ const PARTNER_AUTH_DOMAIN='partners.yourdigitalgroupresources.com'; // internal 
 let emailMode=false;         // staff escape hatch: sign in with a real email on a partner link
 let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
 let viewingSaved=null;       // a saved prospect opened from the team list (archive view)
-let compDismissed=[];        // domains the rep X'd out of "Who's winning" (persists in extras)
+let compDismissed=[];        // indexes into ah.competitors the rep X'd out (persists in extras)
 const COMP_SHOW=3;           // how many competitors to display at once; the rest backfill
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
@@ -182,21 +182,21 @@ function renderMoney(){
       :'Their site was <b>not found</b> in the results for this search.')+'</div>'
     +'</div>';
 }
-/* The full competitor list minus any the rep X'd out. The audit may return more
-   than we show — we display COMP_SHOW at a time and backfill from the rest as
-   competitors are dismissed. (If the audit only returns 3, dismissing simply
-   shows fewer; bump the result count in the ahrefs-audit edge function to feed
-   the backfill.) */
+/* The full competitor list minus any the rep X'd out. Dismissals are tracked by
+   index into the original ah.competitors array (not by domain string) so they
+   always match regardless of casing/whitespace/escaping. We display COMP_SHOW at
+   a time and backfill from the rest as competitors are dismissed. */
 function liveCompetitors(){
   if(!ah||!ah.competitors)return [];
-  return ah.competitors.filter(c=>!compDismissed.includes(c.domain));
+  return ah.competitors.filter((c,i)=>!compDismissed.includes(i));
 }
 function renderCompetitors(){
   const box=$('compBox');
   const all=(ah&&ah.competitors)||[];
   if(!all.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
-  const survivors=liveCompetitors();
+  // keep original indexes alongside each survivor so the × knows what to dismiss
+  const survivors=all.map((c,i)=>({c,i})).filter(x=>!compDismissed.includes(x.i));
   const shown=survivors.slice(0,COMP_SHOW);
   const heldBack=survivors.length-shown.length;
   $('compHead').innerHTML='Who\u2019s winning instead '+infoIcon('competitors','competitors');
@@ -206,15 +206,15 @@ function renderCompetitors(){
     $('compReset').addEventListener('click',()=>{compDismissed=[];render();});
     return;
   }
-  const rows=shown.map(c=>{
+  const rows=shown.map(({c,i})=>{
     const meta=c.position!=null
       ?('#'+c.position+' for the money search \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'\u2014'))
       :(fmt(c.traffic)+' visits/mo \u00B7 authority '+(c.dr!=null?Math.round(c.dr):'\u2014'));
-    return '<div class="comp-row" data-dom="'+esc(c.domain)+'">'
+    return '<div class="comp-row" data-i="'+i+'">'
       +'<div class="comp-dom">'+esc(c.domain)+'</div>'
       +'<div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">'
       +'<span class="comp-meta">'+meta+'</span>'
-      +'<button class="del comp-x" data-dom="'+esc(c.domain)+'" aria-label="Remove '+esc(c.domain)+'" title="Can\u2019t compete with this one? Remove it \u2014 the next one takes its place.">\u00D7</button>'
+      +'<button class="del comp-x" data-i="'+i+'" aria-label="Remove '+esc(c.domain)+'" title="Can\u2019t compete with this one? Remove it \u2014 the next one takes its place.">\u00D7</button>'
       +'</div></div>';
   }).join('');
   const note=heldBack>0
@@ -222,7 +222,7 @@ function renderCompetitors(){
     :(compDismissed.length?'<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;"><button class="linklike" id="compReset" style="display:inline;margin:0;">Restore dismissed competitors</button></div>':'');
   $('compBody').innerHTML=rows+note;
   $('compBody').querySelectorAll('.comp-x').forEach(b=>b.addEventListener('click',()=>{
-    const d=b.dataset.dom;if(!compDismissed.includes(d))compDismissed.push(d);render();
+    const i=parseInt(b.dataset.i,10);if(!compDismissed.includes(i))compDismissed.push(i);render();
   }));
   const reset=$('compReset');if(reset)reset.addEventListener('click',()=>{compDismissed=[];render();});
 }
