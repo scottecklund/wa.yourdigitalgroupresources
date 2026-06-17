@@ -610,20 +610,28 @@ function buildReport(){
       +items.filter(x=>x[1]!=null).map(x=>bar(x[0],x[1],x[1]+' / 100',lhColor(x[1]))).join('');
   }
 
-  // recommended services — the pitch bundle, derived from the gaps + ads signal
-  const svcSet=[];
-  findings.filter(f=>!f.ok&&f.service).forEach(f=>{if(!svcSet.includes(f.service))svcSet.push(f.service);});
-  if(adsRunning()&&!svcSet.includes('Landing pages'))svcSet.push('Landing pages');
+  // recommended services — SAME source as the on-screen "services to pitch" card,
+  // minus Site speed (kept on screen for reps, left off the client-facing report).
+  const svcSet=pitchList(score()).filter(sv=>sv!=='Site speed');
   const svcBlurb={
+    'New website':'A fast, modern, ADA-ready website that earns trust the moment a customer lands \u2014 and gives Google a reason to rank '+esc(biz)+' higher.',
     'SEO':'Get found for the searches customers actually use, so the calls come to '+esc(biz)+' instead of competitors.',
-    'Website':'A fast, modern, ADA-ready site that earns trust on first impression and turns visitors into calls.',
-    'ADA / accessibility':'Close the accessibility gaps that create legal exposure and shut out potential customers.',
-    'Landing pages':'They\u2019re already paying for Google Ads \u2014 purpose-built landing pages turn those clicks into far more booked jobs for the same spend.'
+    'Site speed':'Speed work so pages load fast on phones, hold the visitor long enough to call, and stop losing Google rankings to slowness.',
+    'ADA / accessibility':'Close the accessibility gaps that create real legal exposure and shut out potential customers.',
+    'Targeted landing pages':'They\u2019re already paying for Google Ads \u2014 purpose-built landing pages turn those clicks into far more booked jobs for the same spend.'
   };
+  // dark service "cards" (matches the on-screen Services to Pitch chips)
+  const svcCards=(extraStyle)=>svcSet.map(sv=>'<span style="display:inline-block;background:'+ink+';color:#fff;font-size:12px;font-weight:700;border-radius:9px;padding:7px 13px;margin:0 6px 6px 0;'+(extraStyle||'')+'">'+esc(sv)+'</span>').join('');
+  // compact chip row for the top summary
+  const pitchChipsTop=svcSet.length
+    ?('<div style="margin:16px 0 4px;"><div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+soft+';font-weight:700;margin-bottom:8px;">Services to pitch</div><div>'+svcCards()+'</div></div>')
+    :'';
+  // detailed bundle lower down (cards + what each does)
   let pitchHtml='';
   if(svcSet.length){
     pitchHtml='<div style="background:#fff;border:2px solid '+ink+';border-radius:14px;padding:18px 20px;margin:24px 0;">'
-      +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+ink+';font-weight:800;margin-bottom:10px;">How '+esc(agency)+' would help</div>'
+      +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+ink+';font-weight:800;margin-bottom:12px;">How '+esc(agency)+' would help</div>'
+      +'<div style="margin-bottom:6px;">'+svcCards()+'</div>'
       +svcSet.map((sv,i)=>'<div style="padding:9px 0;'+(i<svcSet.length-1?('border-bottom:1px solid '+ln+';'):'')+'">'
         +'<div style="font-weight:700;font-size:13.5px;">'+esc(sv)+'</div>'
         +'<div style="font-size:12px;color:'+soft+';margin-top:2px;max-width:62ch;">'+(svcBlurb[sv]||'')+'</div></div>').join('')
@@ -645,6 +653,7 @@ function buildReport(){
     +'<div style="font-size:13px;font-weight:700;opacity:.9;text-align:right;">'+esc(agency)+'</div></div>'
     +'<p style="font-size:13px;color:'+soft+';margin:16px 0 0;">We looked at '+esc(biz)+' the way a customer searching Google would \u2014 here\u2019s what we found. '
     +(gapsCount?('<b style="color:'+ink+';">'+gapsCount+' '+(gapsCount===1?'opportunity':'opportunities')+'</b> stood out.'):'Things look strong.')+'</p>'
+    +pitchChipsTop
     +priorityHtml+moneyHtml+compHtml+healthHtml
     +'<h3 style="font-size:14px;margin:24px 0 2px;">What we checked, and what it means for you</h3>'+checks
     +pitchHtml
