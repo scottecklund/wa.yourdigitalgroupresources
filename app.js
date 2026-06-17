@@ -31,7 +31,6 @@ let emailMode=false;         // staff escape hatch: sign in with a real email on
 let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
 let viewingSaved=null;       // a saved prospect opened from the team list (archive view)
 let compDismissed=[];        // indexes into ah.competitors the rep X'd out (persists in extras)
-const COMP_SHOW=3;           // how many competitors to display at once; the rest backfill
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -79,7 +78,7 @@ const METRIC_TIPS={
   platform:'Whether the site runs on WordPress. WordPress sites are a fit for Targeted Landing Pages \u2014 non-WordPress sites are not, so don\u2019t pitch TLPs there.',
   paid:'Whether they\u2019re currently running Google Ads. If yes, they\u2019re paying for clicks — a strong budget signal and a fit for dedicated landing pages.',
   money:'The search every month that should be bringing them customers. We check how many people search it and whether their site shows up at all.',
-  competitors:'The businesses on page 1 of their money search. We show the top 3 \u2014 if one is a national site or directory you can\u2019t realistically beat, X it out and the next strongest local rival takes its place.',
+  competitors:'The businesses on page 1 of their money search. If one is a national site or directory you can\u2019t realistically beat, X it out so it won\u2019t show on the client report.',
   contact:'Phone, email, and address pulled from their website (homepage or contact page). Best-effort — give it a quick glance before outreach.',
   rankedfor:'Searches where their site already appears, and at what position. Positions 4–20 are "almost there" — quick wins to pitch.',
   lh:'Four automated checks Google runs on the live site, scored 0–100: speed on a phone, accessibility, basic SEO hygiene, and code best practices.',
@@ -168,24 +167,26 @@ function renderLH(){
 }
 function renderMoney(){
   const box=$('moneyBox');
-  if(!ah||!ah.money||ah.money.volume==null){box.classList.add('hidden');return;}
-  const m=ah.money;box.classList.remove('hidden');
-  const ranks=m.best_position!=null;
-  const cpc=m.cpc!=null?('$'+(m.cpc/100).toFixed(2)):null;
-  $('moneyHead').innerHTML='The money search '+infoIcon('money','the money search');
-  $('moneyBody').innerHTML=
-    '<div class="money '+(ranks?'money-ok':'money-miss')+'">'
-    +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
-    +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
-    +'<div class="money-verdict">'+(ranks
-      ?'Their site ranks <b>#'+m.best_position+'</b> for this search.'
-      :'Their site was <b>not found</b> in the results for this search.')+'</div>'
-    +'</div>';
+  const list=(ah&&ah.money_list&&ah.money_list.length)?ah.money_list:((ah&&ah.money)?[ah.money]:[]);
+  const shown=list.filter(x=>x&&x.volume!=null);
+  if(!shown.length){box.classList.add('hidden');return;}
+  box.classList.remove('hidden');
+  $('moneyHead').innerHTML=(shown.length>1?'The money searches ':'The money search ')+infoIcon('money','the money search');
+  $('moneyBody').innerHTML=shown.map(m=>{
+    const ranks=m.best_position!=null;
+    const cpc=m.cpc!=null?('$'+(m.cpc/100).toFixed(2)):null;
+    return '<div class="money '+(ranks?'money-ok':'money-miss')+'" style="margin-bottom:9px;">'
+      +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
+      +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
+      +'<div class="money-verdict">'+(ranks
+        ?'Their site ranks <b>#'+m.best_position+'</b> for this search.'
+        :'Their site was <b>not found</b> in the results for this search.')+'</div>'
+      +'</div>';
+  }).join('');
 }
 /* The full competitor list minus any the rep X'd out. Dismissals are tracked by
    index into the original ah.competitors array (not by domain string) so they
-   always match regardless of casing/whitespace/escaping. We display COMP_SHOW at
-   a time and backfill from the rest as competitors are dismissed. */
+   always match regardless of casing/whitespace/escaping. */
 function liveCompetitors(){
   if(!ah||!ah.competitors)return [];
   return ah.competitors.filter((c,i)=>!compDismissed.includes(i));
@@ -196,9 +197,7 @@ function renderCompetitors(){
   if(!all.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
   // keep original indexes alongside each survivor so the × knows what to dismiss
-  const survivors=all.map((c,i)=>({c,i})).filter(x=>!compDismissed.includes(x.i));
-  const shown=survivors.slice(0,COMP_SHOW);
-  const heldBack=survivors.length-shown.length;
+  const shown=all.map((c,i)=>({c,i})).filter(x=>!compDismissed.includes(x.i));
   $('compHead').innerHTML='Who\u2019s winning instead '+infoIcon('competitors','competitors');
   if(!shown.length){
     $('compBody').innerHTML='<div style="font-size:12.5px;color:var(--ink-soft);padding:8px 2px;">'
@@ -214,12 +213,12 @@ function renderCompetitors(){
       +'<div class="comp-dom">'+esc(c.domain)+'</div>'
       +'<div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">'
       +'<span class="comp-meta">'+meta+'</span>'
-      +'<button class="del comp-x" data-i="'+i+'" aria-label="Remove '+esc(c.domain)+'" title="Can\u2019t compete with this one? Remove it \u2014 the next one takes its place.">\u00D7</button>'
+      +'<button class="del comp-x" data-i="'+i+'" aria-label="Remove '+esc(c.domain)+'" title="Can\u2019t compete with this one? Remove it from the list.">\u00D7</button>'
       +'</div></div>';
   }).join('');
-  const note=heldBack>0
-    ?('<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:\'IBM Plex Mono\',monospace;">Showing top '+shown.length+' \u00B7 '+heldBack+' more ready to take their place if you remove one.</div>')
-    :(compDismissed.length?'<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;"><button class="linklike" id="compReset" style="display:inline;margin:0;">Restore dismissed competitors</button></div>':'');
+  const note=compDismissed.length
+    ?'<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;"><button class="linklike" id="compReset" style="display:inline;margin:0;">Restore dismissed competitors</button></div>'
+    :'';
   $('compBody').innerHTML=rows+note;
   $('compBody').querySelectorAll('.comp-x').forEach(b=>b.addEventListener('click',()=>{
     const i=parseInt(b.dataset.i,10);if(!compDismissed.includes(i))compDismissed.push(i);render();
@@ -297,8 +296,70 @@ async function runLighthouse(domain,token){
 /* ===== run audit ===== */
 function setStatus(cls,html){const el=$('status');el.className='status show '+cls;el.innerHTML=html;}
 function clearStatus(){$('status').className='status';}
-function moneyTerm(){const city=$('city').value.trim(),service=$('service').value.trim();
-  return (service&&city)?(service+' '+city).toLowerCase():'';}
+const MONEY_MAX=5;
+// Collect the service keyword rows, split any comma lists, combine each with the
+// city, de-dupe, cap at MONEY_MAX. Returns an array of money searches.
+function moneyTerms(){
+  const city=$('city').value.trim().toLowerCase();
+  const raw=[];
+  document.querySelectorAll('.kw-input').forEach(el=>{
+    el.value.split(',').forEach(part=>{const t=part.trim();if(t)raw.push(t);});
+  });
+  const out=[];
+  for(const svc of raw){
+    const term=(city?(svc+' '+city):svc).toLowerCase();
+    if(term&&!out.includes(term))out.push(term);
+    if(out.length>=MONEY_MAX)break;
+  }
+  return out;
+}
+// back-compat single term (first keyword)
+function moneyTerm(){return moneyTerms()[0]||'';}
+// the raw service text of the first keyword row (no city) — for report/email/save
+function primaryService(){
+  const el=document.querySelector('.kw-input');
+  if(!el)return '';
+  return (el.value.split(',')[0]||'').trim();
+}
+// all service keyword rows as raw text (no city), for saving
+function serviceRows(){
+  const out=[];
+  document.querySelectorAll('.kw-input').forEach(el=>{
+    el.value.split(',').forEach(p=>{const t=p.trim();if(t)out.push(t);});
+  });
+  return out;
+}
+// repopulate keyword rows from a saved list
+function setKeywordRows(list){
+  const wrap=$('kwRows');if(!wrap)return;
+  wrap.innerHTML='';
+  const arr=(Array.isArray(list)&&list.length)?list:[''];
+  arr.slice(0,MONEY_MAX).forEach(v=>addKeywordRow(v));
+  if(!wrap.querySelector('.kw-row'))addKeywordRow('');
+  syncAddBtn();
+}
+
+// "+ Add keyword" — append a new service row (up to MONEY_MAX)
+function addKeywordRow(value){
+  const wrap=$('kwRows');if(!wrap)return;
+  if(wrap.querySelectorAll('.kw-row').length>=MONEY_MAX)return;
+  const row=document.createElement('div');
+  row.className='kw-row';
+  row.style.cssText='display:flex;gap:7px;align-items:center;margin-top:7px;';
+  row.innerHTML='<input class="kw-input" placeholder="e.g., HVAC repair" style="flex:1;" value="'+esc(value||'')+'">'
+    +'<button class="ghost kw-del" type="button" title="Remove this keyword" style="padding:8px 11px;">\u00D7</button>';
+  wrap.appendChild(row);
+  row.querySelector('.kw-del').addEventListener('click',()=>{row.remove();syncAddBtn();});
+  syncAddBtn();
+}
+function syncAddBtn(){
+  const btn=$('addKwBtn');if(!btn)return;
+  const n=document.querySelectorAll('.kw-row').length;
+  btn.style.display=n>=MONEY_MAX?'none':'';
+  // hide every delete button when only one row remains (can't remove the last)
+  const dels=document.querySelectorAll('.kw-del');
+  dels.forEach(d=>d.style.visibility=(n<=1?'hidden':'visible'));
+}
 
 async function checkDuplicate(domain){
   const clean=domain.replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase();
@@ -329,7 +390,7 @@ async function runAudit(){
     skipDupCheck=false;
     exitViewMode();
     setStatus('loading','<span class="spin"></span>Running the audit on '+esc(domain)+'… (10–20 seconds)');
-    const {data,error}=await sb.functions.invoke('ahrefs-audit',{body:{url:domain,money_keyword:moneyTerm()}});
+    const {data,error}=await sb.functions.invoke('ahrefs-audit',{body:{url:domain,money_keywords:moneyTerms()}});
     if(error) throw new Error((data&&data.error)||error.message);
     if(data&&data.error) throw new Error(data.error);
     ah=data;
@@ -361,7 +422,7 @@ function moneyValue(){
 function buildEmail(){
   const biz=$('clientName').value.trim()||'your business';
   const agency=agencyName('[Your name]');
-  const service=$('service').value.trim(),city=$('city').value.trim();
+  const service=primaryService(),city=$('city').value.trim();
   const m=ah&&ah.money,miss=moneyMiss();
   const comp=(ah&&ah.competitors&&ah.competitors[0])||null;
   const val=moneyValue();
@@ -408,8 +469,9 @@ function buildReport(){
   const agency=agencyName('Your Agency');
   const biz=$('clientName').value.trim()||ah.target;
   const city=$('city').value.trim();
-  const service=$('service').value.trim();
-  const m=ah.money,comp=liveCompetitors().slice(0,COMP_SHOW),s=(lh.status==='done')?lh.scores:null;
+  const service=primaryService();
+  const moneyList=(ah.money_list&&ah.money_list.length)?ah.money_list:(ah.money?[ah.money]:[]);
+  const m=ah.money||moneyList[0]||null,comp=liveCompetitors(),s=(lh.status==='done')?lh.scores:null;
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const ink='#18212F',soft='#5C6779',ln='#E7EAEF',bad='#BC4338',badBg='#FBF0EF',go='#13795A',goBg='#EEF6F2',wait='#A8650F',waitBg='#FBF4E8',blue='#2D4EF5',blueBg='#EEF2FF';
   const clamp=v=>Math.max(2,Math.min(100,v||0));
@@ -421,51 +483,52 @@ function buildReport(){
   const where=city?(' in '+esc(city)):'';
   const svc=service?esc(service.toLowerCase()):'their service';
 
-  /* ---- findings: each carries a plain-language WHY and a WHAT-WE'D-DO, so a
+  /* ---- findings: each carries a plain-language WHY (lost revenue + competitor
+        proof) and a WHAT-WE'D-DO tied to a named service from our pitch set, so a
         rep who doesn't live in digital can still explain and sell it ---- */
-  const findings=[]; // {label, ok, problem, why, fix, priority}
+  const compNames=comp.slice(0,3).map(c=>c.domain).filter(Boolean);
+  const compProof=compNames.length
+    ?(' Meanwhile '+compNames.slice(0,2).join(' and ')+(compNames.length>2?' and others':'')+' are showing up'+where+' and taking those calls.')
+    :'';
+  const findings=[]; // {label, ok, problem, why, fix, service, priority}
   const moneyMissReport=m&&m.volume!=null&&m.best_position==null;
   findings.push({
     label:'Showing up on Google',
     ok:!seoWeak(),
+    service:'SEO',
     priority:moneyMissReport?1:(seoWeak()?2:99),
     problem:moneyMissReport
       ?('About '+fmt(m.volume)+' people search \u201C'+esc(m.keyword)+'\u201D every month, and '+esc(biz)+' doesn\u2019t appear in those results at all.')
       :(seoWeak()?'The site appears for very few of the searches customers'+where+' actually type into Google.':'The site shows up where it counts.'),
-    why:seoWeak()?'When people search for '+svc+where+', they call whoever they find first. If '+esc(biz)+' isn\u2019t on that first page, those calls go to a competitor \u2014 every day, automatically.':'',
-    fix:seoWeak()?'Get the site found for the searches that actually bring in customers \u2014 the listings, content, and on-page work that move it onto page one.':''
+    why:seoWeak()?('When someone searches for '+svc+where+', they call whoever they find first \u2014 and right now that isn\u2019t '+esc(biz)+'. Every one of those searches is a customer with their wallet out, handed to someone else.'+compProof):'',
+    fix:seoWeak()?('Search optimization (SEO) gets '+esc(biz)+' found for the terms that actually bring in paying customers \u2014 putting the business in front of people at the exact moment they\u2019re looking to buy.'):''
   });
   findings.push({
     label:'Website freshness',
     ok:sel.age==='current',
+    service:'Website',
     priority:3,
     problem:sel.age!=='current'?'The design and content look several years old.':'',
-    why:sel.age!=='current'?'A dated site quietly tells visitors the business may be behind the times \u2014 and Google tends to trust fresher, well-kept sites more.':'',
-    fix:sel.age!=='current'?'A modern refresh that builds instant trust and gives Google a reason to rank it higher.':''
+    why:sel.age!=='current'?('A dated site quietly tells every visitor the business may be behind the times \u2014 and first impressions decide whether someone calls or hits the back button. Google also trusts and ranks fresher, well-maintained sites higher, so an old site costs visibility on top of credibility.'):'',
+    fix:sel.age!=='current'?('A new website \u2014 modern, fast, and built to convert \u2014 gives '+esc(biz)+' instant credibility the moment a customer lands, and gives Google a reason to rank it higher.'):''
   });
   findings.push({
     label:'Works well on phones',
     ok:sel.mobile==='yes',
+    service:'Website',
     priority:2,
     problem:sel.mobile!=='yes'?'The site struggles on phone screens.':'',
-    why:sel.mobile!=='yes'?'Most local customers search on their phone. If the site is hard to read or tap, they bounce and call the next business instead.':'',
-    fix:sel.mobile!=='yes'?'A mobile-first build so the site works perfectly on the device most customers actually use.':''
-  });
-  if(s&&s.perf!=null)findings.push({
-    label:'Loads fast on phones',
-    ok:!speedWeakFlag(),
-    priority:2,
-    problem:speedWeakFlag()?('Google\u2019s own speed test scores the site '+s.perf+' out of 100 on a phone.'):'',
-    why:speedWeakFlag()?'Slow pages lose visitors before they ever see the phone number \u2014 most people leave a page that takes more than three seconds. Google also pushes slow sites down the rankings.':'',
-    fix:speedWeakFlag()?'Speed work so pages load fast, hold the visitor, and rank better.':''
+    why:sel.mobile!=='yes'?('Most local customers search on their phone. If the site is hard to read or tap, they don\u2019t struggle through it \u2014 they bounce and call the next business in the list. That\u2019s revenue walking out the door on the most common device people use.'):'',
+    fix:sel.mobile!=='yes'?('A new website built mobile-first works perfectly on the device most customers actually use \u2014 so the phone calls land with '+esc(biz)+' instead of a competitor.'):''
   });
   if(s&&s.a11y!=null)findings.push({
     label:'Accessibility & ADA risk',
     ok:!a11yIssues(),
+    service:'ADA / accessibility',
     priority:a11yIssues()?2:99,
     problem:a11yIssues()?('Automated testing scores accessibility '+s.a11y+' out of 100, flagging issues like missing image descriptions, low color contrast, and unlabeled forms.'):'',
-    why:a11yIssues()?'Beyond shutting out customers who use screen readers or other assistive tech, an inaccessible site is a real legal exposure \u2014 ADA website lawsuits and demand letters against small businesses have become common, and the business usually pays to settle.':'',
-    fix:a11yIssues()?'An accessibility pass that fixes the flagged issues \u2014 reducing legal risk and opening the site to every customer.':''
+    why:a11yIssues()?('Two costs here. First, customers who use screen readers or other assistive technology simply can\u2019t use the site \u2014 that\u2019s business turned away. Second, and bigger: an inaccessible site is real legal exposure. ADA website lawsuits and demand letters against small businesses have become common, and the business almost always pays to settle \u2014 often far more than it would have cost to fix.'):'',
+    fix:a11yIssues()?('An accessibility (ADA) remediation pass fixes the flagged issues \u2014 cutting the legal risk and opening the site to every potential customer. A new website from us is built ADA-compliant from the ground up.'):''
   });
 
   const gaps=findings.filter(f=>!f.ok);
@@ -480,7 +543,8 @@ function buildReport(){
     if(!f.ok){
       if(f.problem)checks+='<div style="color:'+ink+';font-size:12.5px;margin-top:6px;max-width:60ch;">'+f.problem+'</div>';
       if(f.why)checks+='<div style="font-size:12px;margin-top:7px;max-width:60ch;"><span style="color:'+bad+';font-weight:700;">Why this matters:</span> <span style="color:'+soft+';">'+f.why+'</span></div>';
-      if(f.fix)checks+='<div style="font-size:12px;margin-top:4px;max-width:60ch;"><span style="color:'+go+';font-weight:700;">What we\u2019d do:</span> <span style="color:'+soft+';">'+f.fix+'</span></div>';
+      if(f.fix)checks+='<div style="font-size:12px;margin-top:4px;max-width:60ch;"><span style="color:'+go+';font-weight:700;">How '+esc(agency)+' fixes it:</span> <span style="color:'+soft+';">'+f.fix+'</span></div>';
+      if(f.service)checks+='<div style="margin-top:8px;"><span style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:'+ink+';color:#fff;border-radius:6px;padding:4px 9px;">Recommended: '+esc(f.service)+'</span></div>';
     }else if(f.problem){
       checks+='<div style="color:'+soft+';font-size:12px;margin-top:4px;">'+f.problem+'</div>';
     }
@@ -500,22 +564,31 @@ function buildReport(){
       +items+'</div>';
   }
 
-  // money feature panel
+  // money panel — one row PER keyword, each with its own volume + rank
   let moneyHtml='';
-  if(m&&m.volume!=null){
-    const ranks=m.best_position!=null;
-    const stat=(v,l)=>'<div style="flex:1;min-width:110px;"><div style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:'+(ranks?go:bad)+';">'+v+'</div><div style="font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:'+soft+';margin-top:2px;">'+l+'</div></div>';
-    moneyHtml='<div style="background:'+(ranks?goBg:badBg)+';border:1px solid '+(ranks?'#CDE5DA':'#F0D4D0')+';border-radius:14px;padding:18px 20px;margin:20px 0;">'
-      +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+soft+';font-weight:700;">The search that should bring you customers</div>'
-      +'<div style="font-size:21px;font-weight:800;margin:5px 0 12px;">\u201C'+esc(m.keyword)+'\u201D</div>'
-      +'<div style="display:flex;gap:18px;flex-wrap:wrap;">'
-      +stat(fmt(m.volume),'searches every month')
-      +(m.cpc!=null?stat('$'+(m.cpc/100).toFixed(2),'advertisers pay per click'):'')
-      +stat(ranks?('#'+m.best_position):'Not found','your position')
-      +'</div>'
-      +'<div style="font-size:13px;margin-top:12px;">'+(ranks?'Your site appears at <b>#'+m.best_position+'</b> for this search.':'Your website <b>does not appear</b> in these results \u2014 every one of those searches is finding someone else.')+'</div>'
-      +((!ranks&&money&&m.cpc)?('<div style="font-size:12.5px;margin-top:8px;color:'+ink+';border-top:1px solid '+(ranks?'#CDE5DA':'#F0D4D0')+';padding-top:9px;">Put a dollar figure on it: at what advertisers pay per click, that\u2019s roughly <b>$'+fmt(money)+' a month</b> in traffic Google is handing out '+where+' \u2014 just not to you.</div>'):'')
-      +'</div>';
+  const mlist=moneyList.filter(x=>x&&x.volume!=null);
+  if(mlist.length){
+    const rowFor=(mk)=>{
+      const ranks=mk.best_position!=null;
+      const val=(mk.volume&&mk.cpc)?Math.round(mk.volume*(mk.cpc/100)):null;
+      const stat=(v,l,c)=>'<div style="flex:1;min-width:92px;"><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:'+c+';">'+v+'</div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:'+soft+';margin-top:2px;">'+l+'</div></div>';
+      return '<div style="background:'+(ranks?goBg:badBg)+';border:1px solid '+(ranks?'#CDE5DA':'#F0D4D0')+';border-radius:13px;padding:15px 17px;margin:10px 0;">'
+        +'<div style="font-size:16px;font-weight:800;margin-bottom:10px;">\u201C'+esc(mk.keyword)+'\u201D</div>'
+        +'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
+        +stat(fmt(mk.volume),'searches / month',ink)
+        +(mk.cpc!=null?stat('$'+(mk.cpc/100).toFixed(2),'ad cost per click',ink):'')
+        +stat(ranks?('#'+mk.best_position):'Not found','their position',ranks?go:bad)
+        +'</div>'
+        +'<div style="font-size:12.5px;margin-top:11px;">'+(ranks
+          ?('Their site appears at <b>#'+mk.best_position+'</b> for this search.'+(mk.best_position>3?' Page-one but below the top 3 \u2014 most clicks go to the first three results, so there\u2019s real room to climb.':''))
+          :('Their site <b>does not appear</b> for this search \u2014 every one of these customers is finding a competitor instead.'))
+        +'</div>'
+        +((!ranks&&val)?('<div style="font-size:12px;margin-top:8px;color:'+ink+';border-top:1px solid #F0D4D0;padding-top:8px;">At what advertisers pay per click, that\u2019s roughly <b>$'+fmt(val)+'/month</b> in customer traffic going elsewhere.</div>'):'')
+        +'</div>';
+    };
+    moneyHtml='<h3 style="font-size:14px;margin:24px 0 4px;">The searches that should bring '+esc(biz)+' customers</h3>'
+      +'<p style="color:'+soft+';font-size:12px;margin:0 0 4px;">Each of these is a search a local customer types when they\u2019re ready to buy. We checked the monthly search volume and exactly where '+esc(biz)+' ranks for each.</p>'
+      +mlist.map(rowFor).join('');
   }
 
   // competitor authority bars
@@ -537,6 +610,26 @@ function buildReport(){
       +items.filter(x=>x[1]!=null).map(x=>bar(x[0],x[1],x[1]+' / 100',lhColor(x[1]))).join('');
   }
 
+  // recommended services — the pitch bundle, derived from the gaps + ads signal
+  const svcSet=[];
+  findings.filter(f=>!f.ok&&f.service).forEach(f=>{if(!svcSet.includes(f.service))svcSet.push(f.service);});
+  if(adsRunning()&&!svcSet.includes('Landing pages'))svcSet.push('Landing pages');
+  const svcBlurb={
+    'SEO':'Get found for the searches customers actually use, so the calls come to '+esc(biz)+' instead of competitors.',
+    'Website':'A fast, modern, ADA-ready site that earns trust on first impression and turns visitors into calls.',
+    'ADA / accessibility':'Close the accessibility gaps that create legal exposure and shut out potential customers.',
+    'Landing pages':'They\u2019re already paying for Google Ads \u2014 purpose-built landing pages turn those clicks into far more booked jobs for the same spend.'
+  };
+  let pitchHtml='';
+  if(svcSet.length){
+    pitchHtml='<div style="background:#fff;border:2px solid '+ink+';border-radius:14px;padding:18px 20px;margin:24px 0;">'
+      +'<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:'+ink+';font-weight:800;margin-bottom:10px;">How '+esc(agency)+' would help</div>'
+      +svcSet.map((sv,i)=>'<div style="padding:9px 0;'+(i<svcSet.length-1?('border-bottom:1px solid '+ln+';'):'')+'">'
+        +'<div style="font-weight:700;font-size:13.5px;">'+esc(sv)+'</div>'
+        +'<div style="font-size:12px;color:'+soft+';margin-top:2px;max-width:62ch;">'+(svcBlurb[sv]||'')+'</div></div>').join('')
+      +'</div>';
+  }
+
   // closing / next steps — hands the rep the call-to-action language
   const nextHtml='<div style="background:'+ink+';color:#fff;border-radius:14px;padding:18px 20px;margin:24px 0 0;">'
     +'<div style="font-size:14px;font-weight:800;margin-bottom:6px;">What happens next</div>'
@@ -554,6 +647,7 @@ function buildReport(){
     +(gapsCount?('<b style="color:'+ink+';">'+gapsCount+' '+(gapsCount===1?'opportunity':'opportunities')+'</b> stood out.'):'Things look strong.')+'</p>'
     +priorityHtml+moneyHtml+compHtml+healthHtml
     +'<h3 style="font-size:14px;margin:24px 0 2px;">What we checked, and what it means for you</h3>'+checks
+    +pitchHtml
     +nextHtml
     +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>'
     +'<script>window.print();<\/script></body></html>';
@@ -567,12 +661,12 @@ async function saveProspect(){
   const name=$('clientName').value.trim();if(!name){$('clientName').focus();return;}
   const sc=score();
   const row={client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
-    city:$('city').value.trim(),service:$('service').value.trim(),
+    city:$('city').value.trim(),service:primaryService(),
     created_by_email:(function(){const r=$('repName');const v=r?r.value.trim():'';if(v)localStorage.setItem('mrr_rep',v);return v||savedBy(session?.user?.email)||null;})(),
     dr:ah?.dr??null,org_traffic:ah?.org_traffic??null,org_keywords:ah?.org_keywords??null,org_keywords_1_3:ah?.org_keywords_1_3??null,
     live_refdomains:ah?.live_refdomains??null,live_backlinks:ah?.live_backlinks??null,running_ads:adsRunning(),
     site_age:sel.age,mobile:sel.mobile,grade:sc.grade,action:sc.action,pitch:pitchList(sc),partner:partner?partner.slug:null,
-    extras:{money:ah?.money??null,competitors:ah?.competitors??null,competitors_dismissed:compDismissed.slice(),top_keywords:ah?.top_keywords??null,site:ah?.site??null,
+    extras:{money:ah?.money??null,money_list:ah?.money_list??null,service_rows:serviceRows(),competitors:ah?.competitors??null,competitors_dismissed:compDismissed.slice(),top_keywords:ah?.top_keywords??null,site:ah?.site??null,
       lighthouse:(lh.status==='done'?lh.scores:null)}};
   const btn=$('saveBtn');btn.disabled=true;btn.textContent='Saving…';
   let {error}=await sb.from('prospects').insert(row);
@@ -595,12 +689,12 @@ function openSaved(l){
   $('clientName').value=l.client_name||'';
   $('domain').value=l.domain||'';
   $('city').value=l.city||'';
-  $('service').value=l.service||'';
   const ex=l.extras||{};
+  setKeywordRows(ex.service_rows&&ex.service_rows.length?ex.service_rows:(l.service?[l.service]:['']));
   ah={target:l.domain,dr:l.dr,org_traffic:l.org_traffic,org_keywords:l.org_keywords,org_keywords_1_3:l.org_keywords_1_3,
     live_refdomains:l.live_refdomains,live_backlinks:l.live_backlinks,
     paid_keywords:l.running_ads?1:0,paid_pages:null,
-    money:ex.money||null,competitors:ex.competitors||null,top_keywords:ex.top_keywords||null,site:ex.site||null};
+    money:ex.money||null,money_list:ex.money_list||(ex.money?[ex.money]:null),competitors:ex.competitors||null,top_keywords:ex.top_keywords||null,site:ex.site||null};
   Object.assign(sel,{age:l.site_age||'current',mobile:l.mobile||'yes'});auto.age=false;auto.mobile=false;
   compDismissed=Array.isArray(ex.competitors_dismissed)?ex.competitors_dismissed.slice():[];
   lh=ex.lighthouse?{status:'done',scores:ex.lighthouse}:{status:'idle',scores:null};
@@ -617,7 +711,8 @@ function openSaved(l){
 }
 function resetAudit(){
   exitViewMode();
-  ['clientName','domain','city','service'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['clientName','domain','city'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  setKeywordRows(['']);
   const es=$('emailSub'),eb=$('emailBody');if(es)es.value='';if(eb)eb.value='';
   ah=null;lh={status:'idle',scores:null};lhToken++;compDismissed=[];
   Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;skipDupCheck=false;
@@ -728,13 +823,17 @@ function wire(){
   $('password').addEventListener('keydown',e=>{if(e.key==='Enter')signIn();});
   $('newAuditBtn').addEventListener('click',resetAudit);
   $('signoutBtn').addEventListener('click',async()=>{await sb.auth.signOut();session=null;showGate();});
+  const addBtn=$('addKwBtn');if(addBtn)addBtn.addEventListener('click',()=>addKeywordRow(''));
+  // wire the delete button on the initial static keyword row + set its visibility
+  document.querySelectorAll('.kw-del').forEach(d=>d.addEventListener('click',e=>{e.target.closest('.kw-row').remove();syncAddBtn();}));
+  syncAddBtn();
 }
 
 /* ===== init ===== */
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v21';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v22';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
