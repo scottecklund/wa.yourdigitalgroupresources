@@ -50,6 +50,7 @@ let viewingSaved=null;       // a saved prospect opened from the team list (arch
 let compDismissed=[];        // indexes into ah.competitors the rep X'd out (persists in extras)
 let currentSaveId=null;      // id of the auto-saved row for THIS audit (null until saved)
 let autoSaving=false;        // guard against concurrent auto-saves
+let reportJustOpened=0;      // timestamp the print tab was opened (suppresses auto-clear on return)
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -700,9 +701,23 @@ function buildReport(){
     +pitchHtml
     +nextHtml
     +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>'
-    +'<script>window.print();<\/script></body></html>';
-  const w=window.open('','_blank');if(!w){alert('Allow pop-ups to generate the report.');return;}
-  w.document.write(html);w.document.close();
+    +'<script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script></body></html>';
+  // Open the report as a fully independent tab via a Blob URL. This severs any link
+  // back to the audit tab, so the child's blocking window.print() can never freeze
+  // it — the root cause of the "spinning wheel when returning from the print tab".
+  reportJustOpened=Date.now();
+  try{
+    const blob=new Blob([html],{type:'text/html'});
+    const u=URL.createObjectURL(blob);
+    const w=window.open(u,'_blank');
+    if(!w){URL.revokeObjectURL(u);alert('Allow pop-ups to generate the report.');return;}
+    setTimeout(()=>URL.revokeObjectURL(u),60000); // free the blob once the tab has loaded
+  }catch(e){
+    // last-ditch fallback: classic write (older browsers without Blob/URL support)
+    const w=window.open('','_blank');
+    if(!w){alert('Allow pop-ups to generate the report.');return;}
+    w.document.write(html);w.document.close();
+  }
 }
 
 /* ===== save + team list ===== */
@@ -899,10 +914,23 @@ function wire(){
   document.querySelectorAll('.kw-del').forEach(d=>d.addEventListener('click',e=>{e.target.closest('.kw-row').remove();syncAddBtn();}));
   syncAddBtn();
   // When the rep leaves the tab on an already-saved audit, clear it so coming back
-  // to a stale tab is a clean slate (the record is safely in the team list).
+  // to a STALE tab is a clean slate. But only after the tab has been hidden a good
+  // while — opening the print/report tab and coming back must NOT wipe the audit.
+  let hiddenTimer=null;
+  const IDLE_CLEAR_MS=10*60*1000; // 10 minutes hidden before we consider it abandoned
   document.addEventListener('visibilitychange',()=>{
-    if(document.hidden && currentSaveId && !viewingSaved && !autoSaving){
-      resetAudit();
+    if(document.hidden){
+      // don't arm the clear if the rep just opened the report tab
+      const fromReport=(Date.now()-reportJustOpened)<5000;
+      if(currentSaveId && !viewingSaved && !autoSaving && !fromReport){
+        clearTimeout(hiddenTimer);
+        hiddenTimer=setTimeout(()=>{
+          // re-check on fire: only clear if still hidden, still a saved audit
+          if(document.hidden && currentSaveId && !viewingSaved && !autoSaving){resetAudit();}
+        },IDLE_CLEAR_MS);
+      }
+    }else{
+      clearTimeout(hiddenTimer);hiddenTimer=null; // back in the tab — cancel any pending clear
     }
   });
 }
@@ -911,7 +939,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v24';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v25';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
