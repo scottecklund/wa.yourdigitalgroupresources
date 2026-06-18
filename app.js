@@ -16,10 +16,13 @@ function initClient(){
       detectSessionInUrl:false   // we never use magic-link redirects here; avoids URL-parse work on every load
     },
     global:{
-      // a hard timeout so a stalled fetch on tab-refocus can never hang the thread forever
+      // A generous hard timeout so a genuinely stalled fetch (e.g. a hung token
+      // refresh on tab-refocus) can't block forever — but long enough that it
+      // NEVER catches a healthy call. Multi-keyword audits and Google's
+      // PageSpeed test can legitimately run 20–40s, so this must stay well above that.
       fetch:(url,opts={})=>{
         const ctrl=new AbortController();
-        const id=setTimeout(()=>ctrl.abort(),20000);
+        const id=setTimeout(()=>ctrl.abort(),60000);
         return fetch(url,{...opts,signal:opts.signal||ctrl.signal}).finally(()=>clearTimeout(id));
       }
     }
@@ -908,7 +911,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v23';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v24';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
