@@ -9,7 +9,21 @@ function initClient(){
     document.body.innerHTML='<div style="max-width:560px;margin:12vh auto;font-family:Inter,sans-serif;color:#18212F;background:#fff;border:1px solid #D7DBE2;border-radius:14px;padding:24px;line-height:1.5"><h2 style="font-family:Space Grotesk,sans-serif;margin-top:0">Set up config.js</h2><p>Copy <code>config.sample.js</code> to <code>config.js</code> and paste your Supabase Project URL and key (Project Settings → API). Then reload.</p></div>';
     return false;
   }
-  sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);
+  sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY,{
+    auth:{
+      autoRefreshToken:true,
+      persistSession:true,
+      detectSessionInUrl:false   // we never use magic-link redirects here; avoids URL-parse work on every load
+    },
+    global:{
+      // a hard timeout so a stalled fetch on tab-refocus can never hang the thread forever
+      fetch:(url,opts={})=>{
+        const ctrl=new AbortController();
+        const id=setTimeout(()=>ctrl.abort(),20000);
+        return fetch(url,{...opts,signal:opts.signal||ctrl.signal}).finally(()=>clearTimeout(id));
+      }
+    }
+  });
   return true;
 }
 
@@ -31,6 +45,8 @@ let emailMode=false;         // staff escape hatch: sign in with a real email on
 let embedMode=false;         // signed in silently (iframe embed) — hide account chrome
 let viewingSaved=null;       // a saved prospect opened from the team list (archive view)
 let compDismissed=[];        // indexes into ah.competitors the rep X'd out (persists in extras)
+let currentSaveId=null;      // id of the auto-saved row for THIS audit (null until saved)
+let autoSaving=false;        // guard against concurrent auto-saves
 function partnerSlug(){
   const clean=v=>(v||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,40);
   const q=new URLSearchParams(location.search).get('p');
@@ -100,7 +116,7 @@ function buildSections(){
     });
     box.innerHTML=html;sectionsEl.appendChild(box);
   });
-  sectionsEl.querySelectorAll('.bands').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{sel[g.dataset.item]=b.dataset.v;auto[g.dataset.item]=false;render();})));
+  sectionsEl.querySelectorAll('.bands').forEach(g=>g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{sel[g.dataset.item]=b.dataset.v;auto[g.dataset.item]=false;render();if(currentSaveId)autoSaveProspect();})));
   document.addEventListener('click',e=>{
     const info=e.target.closest('.info');
     if(info){e.stopPropagation();document.querySelectorAll('.info.show').forEach(o=>{if(o!==info)o.classList.remove('show');});info.classList.toggle('show');return;}
@@ -168,13 +184,21 @@ function renderLH(){
 function renderMoney(){
   const box=$('moneyBox');
   const list=(ah&&ah.money_list&&ah.money_list.length)?ah.money_list:((ah&&ah.money)?[ah.money]:[]);
-  const shown=list.filter(x=>x&&x.volume!=null);
+  const shown=list.filter(x=>x&&x.keyword);   // keep every requested keyword, data or not
   if(!shown.length){box.classList.add('hidden');return;}
   box.classList.remove('hidden');
   $('moneyHead').innerHTML=(shown.length>1?'The money searches ':'The money search ')+infoIcon('money','the money search');
   $('moneyBody').innerHTML=shown.map(m=>{
+    const hasData=m.volume!=null;
     const ranks=m.best_position!=null;
     const cpc=m.cpc!=null?('$'+(m.cpc/100).toFixed(2)):null;
+    if(!hasData){
+      return '<div class="money" style="margin-bottom:9px;background:var(--skip-bg);border-color:var(--line);">'
+        +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
+        +'<div class="money-stats" style="color:var(--ink-soft);">No search-volume data available for this term.</div>'
+        +'<div class="money-verdict" style="color:var(--ink-soft);">Often means very low local search volume \u2014 worth confirming the wording with the client.</div>'
+        +'</div>';
+    }
     return '<div class="money '+(ranks?'money-ok':'money-miss')+'" style="margin-bottom:9px;">'
       +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
       +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
@@ -221,7 +245,7 @@ function renderCompetitors(){
     :'';
   $('compBody').innerHTML=rows+note;
   $('compBody').querySelectorAll('.comp-x').forEach(b=>b.addEventListener('click',()=>{
-    const i=parseInt(b.dataset.i,10);if(!compDismissed.includes(i))compDismissed.push(i);render();
+    const i=parseInt(b.dataset.i,10);if(!compDismissed.includes(i))compDismissed.push(i);render();if(currentSaveId)autoSaveProspect();
   }));
   const reset=$('compReset');if(reset)reset.addEventListener('click',()=>{compDismissed=[];render();});
 }
@@ -291,6 +315,7 @@ async function runLighthouse(domain,token){
     lh={status:'done',scores:data.lighthouse};
   }catch(e){if(token!==lhToken)return;lh={status:'error',scores:null};}
   render();
+  autoSaveProspect(); // grade is now final — save it to the team list automatically
 }
 
 /* ===== run audit ===== */
@@ -395,6 +420,8 @@ async function runAudit(){
     if(data&&data.error) throw new Error(data.error);
     ah=data;
     compDismissed=[];
+    currentSaveId=null;   // fresh audit → fresh saved record (keep every iteration)
+    setSaveStatus('');
     // pre-fill the site checks from the homepage inspection
     Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;
     if(ah.site&&ah.site.fetched){
@@ -568,11 +595,18 @@ function buildReport(){
       +items+'</div>';
   }
 
-  // money panel — one row PER keyword, each with its own volume + rank
+  // money panel — one row PER keyword (every requested keyword, data or not)
   let moneyHtml='';
-  const mlist=moneyList.filter(x=>x&&x.volume!=null);
+  const mlist=moneyList.filter(x=>x&&x.keyword);
   if(mlist.length){
     const rowFor=(mk)=>{
+      const hasData=mk.volume!=null;
+      if(!hasData){
+        return '<div style="background:#F4F5F8;border:1px solid '+ln+';border-radius:13px;padding:15px 17px;margin:10px 0;">'
+          +'<div style="font-size:16px;font-weight:800;margin-bottom:6px;">\u201C'+esc(mk.keyword)+'\u201D</div>'
+          +'<div style="font-size:12.5px;color:'+soft+';">No measurable search volume for this exact term right now. That usually means few people search it word-for-word \u2014 we\u2019d help '+esc(biz)+' target the phrasing customers actually use.</div>'
+          +'</div>';
+      }
       const ranks=mk.best_position!=null;
       const val=(mk.volume&&mk.cpc)?Math.round(mk.volume*(mk.cpc/100)):null;
       const stat=(v,l,c)=>'<div style="flex:1;min-width:92px;"><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:'+c+';">'+v+'</div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:'+soft+';margin-top:2px;">'+l+'</div></div>';
@@ -669,11 +703,10 @@ function buildReport(){
 }
 
 /* ===== save + team list ===== */
-async function saveProspect(){
-  if(viewingSaved)return;
-  const name=$('clientName').value.trim();if(!name){$('clientName').focus();return;}
+function buildProspectRow(){
+  const name=$('clientName').value.trim();if(!name)return null;
   const sc=score();
-  const row={client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
+  return {client_name:name,domain:$('domain').value.trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(),
     city:$('city').value.trim(),service:primaryService(),
     created_by_email:(function(){const r=$('repName');const v=r?r.value.trim():'';if(v)localStorage.setItem('mrr_rep',v);return v||savedBy(session?.user?.email)||null;})(),
     dr:ah?.dr??null,org_traffic:ah?.org_traffic??null,org_keywords:ah?.org_keywords??null,org_keywords_1_3:ah?.org_keywords_1_3??null,
@@ -681,14 +714,36 @@ async function saveProspect(){
     site_age:sel.age,mobile:sel.mobile,grade:sc.grade,action:sc.action,pitch:pitchList(sc),partner:partner?partner.slug:null,
     extras:{money:ah?.money??null,money_list:ah?.money_list??null,service_rows:serviceRows(),competitors:ah?.competitors??null,competitors_dismissed:compDismissed.slice(),top_keywords:ah?.top_keywords??null,site:ah?.site??null,
       lighthouse:(lh.status==='done'?lh.scores:null)}};
-  const btn=$('saveBtn');btn.disabled=true;btn.textContent='Saving…';
-  let {error}=await sb.from('prospects').insert(row);
-  if(error&&/extras/.test(error.message||'')){delete row.extras;({error}=await sb.from('prospects').insert(row));}
-  btn.disabled=false;
-  if(error){btn.textContent='Save failed';console.error(error);setTimeout(()=>btn.textContent='Save to team list',1500);return;}
-  btn.textContent='Saved \u2713';
-  loadRecent();
-  setTimeout(()=>{btn.textContent='Save to team list';resetAudit();},900);
+}
+// Auto-save the current audit. First call inserts (new record per audit/iteration);
+// later calls in the same audit (e.g. rep flips a toggle) update that same row.
+async function autoSaveProspect(){
+  if(viewingSaved||!ah||autoSaving)return;
+  const row=buildProspectRow();if(!row)return; // need a client name
+  autoSaving=true;
+  setSaveStatus('saving');
+  try{
+    if(currentSaveId){
+      let {error}=await sb.from('prospects').update(row).eq('id',currentSaveId);
+      if(error&&/extras/.test(error.message||'')){const r2={...row};delete r2.extras;({error}=await sb.from('prospects').update(r2).eq('id',currentSaveId));}
+      if(error)throw error;
+    }else{
+      let {data,error}=await sb.from('prospects').insert(row).select('id').single();
+      if(error&&/extras/.test(error.message||'')){const r2={...row};delete r2.extras;({data,error}=await sb.from('prospects').insert(r2).select('id').single());}
+      if(error)throw error;
+      currentSaveId=data?.id??null;
+    }
+    setSaveStatus('saved');
+    loadRecent();
+  }catch(e){console.error('auto-save failed',e);setSaveStatus('error');}
+  finally{autoSaving=false;}
+}
+function setSaveStatus(state){
+  const el=$('saveStatus');if(!el)return;
+  if(state==='saving'){el.className='savestatus saving';el.innerHTML='<span class="spin"></span>Saving to team list\u2026';}
+  else if(state==='saved'){el.className='savestatus saved';el.textContent='\u2713 Saved to team list \u2014 find it below. Delete it there if you don\u2019t want it kept.';}
+  else if(state==='error'){el.className='savestatus error';el.textContent='Couldn\u2019t auto-save \u2014 your network may be offline. The audit is still on screen.';}
+  else{el.className='savestatus';el.textContent='';}
 }
 function exitViewMode(){
   viewingSaved=null;
@@ -710,6 +765,7 @@ function openSaved(l){
     money:ex.money||null,money_list:ex.money_list||(ex.money?[ex.money]:null),competitors:ex.competitors||null,top_keywords:ex.top_keywords||null,site:ex.site||null};
   Object.assign(sel,{age:l.site_age||'current',mobile:l.mobile||'yes'});auto.age=false;auto.mobile=false;
   compDismissed=Array.isArray(ex.competitors_dismissed)?ex.competitors_dismissed.slice():[];
+  currentSaveId=null;setSaveStatus('');
   lh=ex.lighthouse?{status:'done',scores:ex.lighthouse}:{status:'idle',scores:null};
   $('auditWrap').classList.remove('hidden');
   render();clearStatus();
@@ -718,7 +774,7 @@ function openSaved(l){
     +(when?(', saved '+when):'')+(savedBy(l.created_by_email)?(' by '+esc(savedBy(l.created_by_email))):'')
     +'. The email and report below regenerate from this archive.';
   $('viewBanner').classList.remove('hidden');
-  $('saveBtn').classList.add('hidden');
+  const sb2=$('saveBtn');if(sb2)sb2.classList.add('hidden');
   const rn=$('repName');if(rn&&rn.closest('.field'))rn.closest('.field').classList.add('hidden');
   $('auditWrap').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -727,7 +783,7 @@ function resetAudit(){
   ['clientName','domain','city'].forEach(id=>{const el=$(id);if(el)el.value='';});
   setKeywordRows(['']);
   const es=$('emailSub'),eb=$('emailBody');if(es)es.value='';if(eb)eb.value='';
-  ah=null;lh={status:'idle',scores:null};lhToken++;compDismissed=[];
+  ah=null;lh={status:'idle',scores:null};lhToken++;compDismissed=[];currentSaveId=null;setSaveStatus('');
   Object.assign(sel,{age:'current',mobile:'yes'});auto.age=false;auto.mobile=false;skipDupCheck=false;
   $('auditWrap').classList.add('hidden');
   clearStatus();
@@ -827,7 +883,6 @@ function wire(){
   $('genEmail').addEventListener('click',buildEmail);
   $('reportBtn').addEventListener('click',buildReport);
   $('copyEmail').addEventListener('click',async()=>{const txt='Subject: '+$('emailSub').value+'\n\n'+$('emailBody').value;try{await navigator.clipboard.writeText(txt);}catch(e){const t=$('emailBody');t.select();document.execCommand('copy');}const c=$('copied');c.classList.add('show');setTimeout(()=>c.classList.remove('show'),1500);});
-  $('saveBtn').addEventListener('click',saveProspect);
   $('search').addEventListener('input',renderRecent);
   $('refreshBtn').addEventListener('click',loadRecent);
   $('exportBtn').addEventListener('click',exportXlsx);
@@ -840,13 +895,20 @@ function wire(){
   // wire the delete button on the initial static keyword row + set its visibility
   document.querySelectorAll('.kw-del').forEach(d=>d.addEventListener('click',e=>{e.target.closest('.kw-row').remove();syncAddBtn();}));
   syncAddBtn();
+  // When the rep leaves the tab on an already-saved audit, clear it so coming back
+  // to a stale tab is a clean slate (the record is safely in the team list).
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden && currentSaveId && !viewingSaved && !autoSaving){
+      resetAudit();
+    }
+  });
 }
 
 /* ===== init ===== */
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v22';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v23';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
@@ -868,4 +930,24 @@ function wire(){
   }
   if(new URLSearchParams(location.search).get('k'))history.replaceState(null,'',location.pathname);
   if(session)onSignedIn(); else showGate();
+
+  // Handle auth-state changes so a token refresh on tab-refocus is graceful instead
+  // of leaving a hung session. This is the core of the "tab freezes after idle" fix:
+  // when the access token expires while the tab is backgrounded, Supabase refreshes
+  // it on return — we react to that event rather than letting calls stall.
+  sb.auth.onAuthStateChange((event,newSession)=>{
+    if(event==='SIGNED_OUT'){
+      session=null;
+      // In embed mode, silently sign back in so the iframe never dies on a stale tab.
+      if(embedMode&&window.EMBED_PASS){
+        sb.auth.signInWithPassword({email:'embed@'+PARTNER_AUTH_DOMAIN,password:window.EMBED_PASS})
+          .then(r=>{if(!r.error){session=r.data.session;}else{showGate();}})
+          .catch(()=>showGate());
+      }else{
+        showGate();
+      }
+    }else if(event==='TOKEN_REFRESHED'||event==='SIGNED_IN'){
+      session=newSession;   // fresh token in hand — nothing hangs
+    }
+  });
 })();
