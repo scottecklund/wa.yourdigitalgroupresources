@@ -721,7 +721,7 @@ function buildReport(){
     +'  if(typeof html2pdf==="undefined"){btn.textContent="Loading\u2026";setTimeout(doDownload,400);return;}'
     +'  btn.disabled=true;btn.textContent="Generating\u2026";'
     +'  var el=document.getElementById("reportBody");'
-    +'  html2pdf().set({margin:[10,10,10,10],filename:"'+safeName+'-website-snapshot.pdf",'
+    +'  html2pdf().set({margin:[12,14,12,14],filename:"'+safeName+'-website-snapshot.pdf",'
     +'    image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},'
     +'    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}})'
     +'    .from(el).save().then(function(){btn.disabled=false;btn.textContent="\u2B07 Download PDF";})'
@@ -733,7 +733,7 @@ function buildReport(){
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot \u2014 '+esc(biz)+'</title>'
     +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}@media print{.noprint{display:none!important;}}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}h3{break-after:avoid;}</style></head><body>'
     +printBar
-    +'<div id="reportBody">'+reportInner+'</div>'
+    +'<div id="reportBody" style="width:600px;max-width:600px;">'+reportInner+'</div>'
     +dlScript
     +'</body></html>';
   // Open the report as a fully independent tab via a Blob URL.
@@ -970,7 +970,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v28';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v29';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
