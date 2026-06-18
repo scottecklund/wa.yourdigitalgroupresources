@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=22">
+<link rel="stylesheet" href="styles.css?v=23">
 <style>
   .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
   @media (max-width:620px){.readout{grid-template-columns:repeat(2,1fr);}}
@@ -76,6 +76,10 @@
   .linklike{background:none;border:none;color:var(--ink-soft);font-size:11.5px;text-decoration:underline;cursor:pointer;margin-top:10px;font-family:inherit;display:block;}
   .linklike:hover{color:var(--ink);}
   .linklike.hidden{display:none;}
+  .savestatus{font-size:12.5px;line-height:1.45;border-radius:10px;min-height:1px;}
+  .savestatus.saving{background:var(--blue-bg);color:var(--blue);padding:10px 12px;}
+  .savestatus.saved{background:var(--go-bg);color:var(--go);padding:10px 12px;font-weight:500;}
+  .savestatus.error{background:var(--bad-bg);color:var(--bad);padding:10px 12px;}
 </style>
 </head>
 <body>
@@ -149,7 +153,7 @@
             </div>
           </div>
           <button class="ghost" id="addKwBtn" type="button" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;">+ Add another search</button>
-          <div class="mini" style="margin-top:6px;line-height:1.4;">Each line is one search a customer would type. The city is added automatically, so <b>HVAC repair</b> becomes <b>hvac repair sioux falls</b>. Up to 5.</div>
+          <div class="mini" style="margin-top:6px;line-height:1.4;">Each line is one search a customer would type. The city is added automatically, so <b>HVAC repair</b> becomes <b>hvac repair sioux falls</b>. Up to 5. You can also paste several separated by commas.</div>
         </div>
         <div class="status" id="status"></div>
       </div>
@@ -204,7 +208,7 @@
             <div class="stamp C" id="stamp"><div class="grade" id="grade">C</div><div class="label" id="action">Low priority</div></div>
             <p class="reason" id="reason"></p>
             <div class="pitch"><div class="lab">Services to pitch</div><div class="pitch-list" id="pitchList"></div></div>
-            <button class="btn btn-dark" id="saveBtn" style="margin-top:14px;">Save to team list</button>
+            <div class="savestatus" id="saveStatus" style="margin-top:14px;"></div>
             <button class="ghost" id="reportBtn" style="margin-top:9px;width:100%;">Client report (print / PDF)</button>
           </div>
         </div>
@@ -238,7 +242,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="config.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="config.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>
