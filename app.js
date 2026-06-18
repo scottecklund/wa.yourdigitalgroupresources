@@ -705,16 +705,36 @@ function buildReport(){
     +pitchHtml
     +nextHtml
     +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>';
-  // A fixed Print button the user clicks themselves — no auto window.print() on
-  // load (that blocking call was freezing the audit tab on return). Clicking it
-  // runs print in the user's own gesture context, which browsers handle cleanly.
+  // Two buttons: Print uses the browser's own engine (sharp, dialog). Download PDF
+  // uses html2pdf to generate and auto-save a file with no dialog (one click).
+  const safeName=(biz||'website').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase()||'website';
   const printBar='<div class="noprint" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid '+ln+';padding:12px 0;margin:-28px 0 18px;display:flex;justify-content:flex-end;gap:8px;">'
-    +'<button onclick="window.print()" style="background:'+ink+';color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">\uD83D\uDDA8 Print / Save as PDF</button>'
+    +'<button id="dlBtn" style="background:'+ink+';color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">\u2B07 Download PDF</button>'
+    +'<button onclick="window.print()" style="background:#fff;color:'+ink+';border:1px solid '+ln+';border-radius:9px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">\uD83D\uDDA8 Print</button>'
     +'</div>';
+  // download handler + library loader (runs inside the report tab, on user click only)
+  const dlScript='<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'
+    +'<script>'
+    +'(function(){'
+    +'var btn=document.getElementById("dlBtn");'
+    +'function doDownload(){'
+    +'  if(typeof html2pdf==="undefined"){btn.textContent="Loading\u2026";setTimeout(doDownload,400);return;}'
+    +'  btn.disabled=true;btn.textContent="Generating\u2026";'
+    +'  var el=document.getElementById("reportBody");'
+    +'  html2pdf().set({margin:[10,10,10,10],filename:"'+safeName+'-website-snapshot.pdf",'
+    +'    image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},'
+    +'    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}})'
+    +'    .from(el).save().then(function(){btn.disabled=false;btn.textContent="\u2B07 Download PDF";})'
+    +'    .catch(function(){btn.disabled=false;btn.textContent="\u2B07 Download PDF";alert("Could not generate the PDF \u2014 try the Print button and choose Save as PDF.");});'
+    +'}'
+    +'btn.addEventListener("click",doDownload);'
+    +'})();'
+    +'<\/script>';
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot \u2014 '+esc(biz)+'</title>'
     +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}@media print{.noprint{display:none!important;}}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}h3{break-after:avoid;}</style></head><body>'
     +printBar
-    +reportInner
+    +'<div id="reportBody">'+reportInner+'</div>'
+    +dlScript
     +'</body></html>';
   // Open the report as a fully independent tab via a Blob URL.
   reportJustOpened=Date.now();
@@ -950,7 +970,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v27';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v28';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
