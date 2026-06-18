@@ -205,7 +205,9 @@ function renderMoney(){
     }
     return '<div class="money '+(ranks?'money-ok':'money-miss')+'" style="margin-bottom:9px;">'
       +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
-      +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
+      // TEMP: CPC hidden — restore by swapping the two lines below
+      // +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
+      +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo</div>'
       +'<div class="money-verdict">'+(ranks
         ?'Their site ranks <b>#'+m.best_position+'</b> for this search.'
         :'Their site was <b>not found</b> in the results for this search.')+'</div>'
@@ -466,7 +468,8 @@ function buildEmail(){
     let line='I was doing some research on '+(service?service.toLowerCase()+' companies':'local businesses')+(city?' in '+city:'')+' and ran a quick audit on '+biz+'. One thing jumped out: about '+fmt(m.volume)+' people search \u201C'+m.keyword+'\u201D every month, and your website doesn\u2019t appear in those results at all.';
     if(comp)line+=' Right now '+comp.domain+(comp.position?' holds the #'+comp.position+' spot':' is collecting that traffic')+' \u2014 those calls are going to them.';
     p.push(line);
-    if(val&&m.cpc)p.push('To put a number on it: advertisers pay about $'+(m.cpc/100).toFixed(2)+' per click for that search. Across '+fmt(m.volume)+' monthly searches, that\u2019s roughly $'+fmt(val)+' a month worth of traffic Google is handing out \u2014 just not to you.');
+    // TEMP: CPC + $/month value hidden from the email — uncomment to restore
+    // if(val&&m.cpc)p.push('To put a number on it: advertisers pay about $'+(m.cpc/100).toFixed(2)+' per click for that search. Across '+fmt(m.volume)+' monthly searches, that\u2019s roughly $'+fmt(val)+' a month worth of traffic Google is handing out \u2014 just not to you.');
   }else if(seoWeak()){
     p.push('I ran a quick audit on '+biz+' and your website shows up for very few of the searches customers'+(city?' in '+city:'')+' actually use \u2014 which usually means the phone is quieter than it should be.');
     if(comp)p.push(comp.domain+' is currently picking up that search traffic instead.');
@@ -618,14 +621,16 @@ function buildReport(){
         +'<div style="font-size:16px;font-weight:800;margin-bottom:10px;">\u201C'+esc(mk.keyword)+'\u201D</div>'
         +'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
         +stat(fmt(mk.volume),'searches / month',ink)
-        +(mk.cpc!=null?stat('$'+(mk.cpc/100).toFixed(2),'ad cost per click',ink):'')
+        // TEMP: CPC stat hidden from report — uncomment to restore
+        // +(mk.cpc!=null?stat('$'+(mk.cpc/100).toFixed(2),'ad cost per click',ink):'')
         +stat(ranks?('#'+mk.best_position):'Not found','their position',ranks?go:bad)
         +'</div>'
         +'<div style="font-size:12.5px;margin-top:11px;">'+(ranks
           ?('Their site appears at <b>#'+mk.best_position+'</b> for this search.'+(mk.best_position>3?' Page-one but below the top 3 \u2014 most clicks go to the first three results, so there\u2019s real room to climb.':''))
           :('Their site <b>does not appear</b> for this search \u2014 every one of these customers is finding a competitor instead.'))
         +'</div>'
-        +((!ranks&&val)?('<div style="font-size:12px;margin-top:8px;color:'+ink+';border-top:1px solid #F0D4D0;padding-top:8px;">At what advertisers pay per click, that\u2019s roughly <b>$'+fmt(val)+'/month</b> in customer traffic going elsewhere.</div>'):'')
+        // TEMP: $/month value (derived from CPC) hidden from report — uncomment to restore
+        // +((!ranks&&val)?('<div style="font-size:12px;margin-top:8px;color:'+ink+';border-top:1px solid #F0D4D0;padding-top:8px;">At what advertisers pay per click, that\u2019s roughly <b>$'+fmt(val)+'/month</b> in customer traffic going elsewhere.</div>'):'')
         +'</div>';
     };
     moneyHtml='<h3 style="font-size:14px;margin:24px 0 4px;">The searches that should bring '+esc(biz)+' customers</h3>'
@@ -687,9 +692,8 @@ function buildReport(){
     +(gapsCount?('There\u2019s a clear fix behind each of the '+gapsCount+' item'+(gapsCount===1?'':'s')+' flagged above.'):'The fundamentals look strong, and there\u2019s always room to push from solid to dominant.')
     +' A 15-minute call is all it takes to walk through what closing these gaps would mean for your calls and leads \u2014 no charge, no pressure.</div></div>';
 
-  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot \u2014 '+esc(biz)+'</title>'
-    +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}h3{break-after:avoid;}</style></head><body>'
-    +'<div style="background:'+ink+';color:#fff;border-radius:14px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;">'
+  const reportInner=
+    '<div style="background:'+ink+';color:#fff;border-radius:14px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;">'
     +'<div><div style="font-size:20px;font-weight:800;letter-spacing:-.01em;">Website Snapshot</div>'
     +'<div style="font-size:12px;opacity:.75;margin-top:3px;">Prepared for '+esc(biz)+(city?(' \u00B7 '+esc(city)):'')+' \u00B7 '+today+'</div></div>'
     +'<div style="font-size:13px;font-weight:700;opacity:.9;text-align:right;">'+esc(agency)+'</div></div>'
@@ -700,11 +704,19 @@ function buildReport(){
     +'<h3 style="font-size:14px;margin:24px 0 2px;">What we checked, and what it means for you</h3>'+checks
     +pitchHtml
     +nextHtml
-    +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>'
-    +'<script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script></body></html>';
-  // Open the report as a fully independent tab via a Blob URL. This severs any link
-  // back to the audit tab, so the child's blocking window.print() can never freeze
-  // it — the root cause of the "spinning wheel when returning from the print tab".
+    +'<p style="font-size:13.5px;font-weight:700;margin-top:18px;">\u2014 '+esc(agency)+'</p>';
+  // A fixed Print button the user clicks themselves — no auto window.print() on
+  // load (that blocking call was freezing the audit tab on return). Clicking it
+  // runs print in the user's own gesture context, which browsers handle cleanly.
+  const printBar='<div class="noprint" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid '+ln+';padding:12px 0;margin:-28px 0 18px;display:flex;justify-content:flex-end;gap:8px;">'
+    +'<button onclick="window.print()" style="background:'+ink+';color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">\uD83D\uDDA8 Print / Save as PDF</button>'
+    +'</div>';
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Website snapshot \u2014 '+esc(biz)+'</title>'
+    +'<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box;}@page{margin:13mm;}@media print{.noprint{display:none!important;}}body{font-family:Helvetica,Arial,sans-serif;color:'+ink+';max-width:660px;margin:0 auto;padding:28px 24px;line-height:1.5;}h3{break-after:avoid;}</style></head><body>'
+    +printBar
+    +reportInner
+    +'</body></html>';
+  // Open the report as a fully independent tab via a Blob URL.
   reportJustOpened=Date.now();
   try{
     const blob=new Blob([html],{type:'text/html'});
@@ -713,7 +725,6 @@ function buildReport(){
     if(!w){URL.revokeObjectURL(u);alert('Allow pop-ups to generate the report.');return;}
     setTimeout(()=>URL.revokeObjectURL(u),60000); // free the blob once the tab has loaded
   }catch(e){
-    // last-ditch fallback: classic write (older browsers without Blob/URL support)
     const w=window.open('','_blank');
     if(!w){alert('Allow pop-ups to generate the report.');return;}
     w.document.write(html);w.document.close();
@@ -939,7 +950,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v25';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v27';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
