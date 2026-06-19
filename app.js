@@ -187,8 +187,7 @@ function renderLH(){
     +tile('Accessibility',s.a11y,'a11y')
     +tile('SEO checks',s.seo,'lhseo')
     +tile('Best practices',s.best,'lhbest')
-    +'</div>'
-    +(adaWidgetPresent()?'<div style="margin-top:9px;font-size:12px;color:var(--go);background:var(--go-bg);border-radius:8px;padding:8px 11px;">\u2713 Our accessibility widget was detected on this site \u2014 ADA is already handled, so it\u2019s not being pitched.</div>':'');
+    +'</div>';
 }
 function renderMoney(){
   const box=$('moneyBox');
@@ -975,7 +974,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v30';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v31';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
