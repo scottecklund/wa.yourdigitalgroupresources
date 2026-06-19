@@ -133,7 +133,11 @@ function isWordpress(){return !!(ah&&ah.site&&ah.site.wordpress);}
 function adsRunning(){return ah && ((ah.paid_keywords||0)>0 || (ah.paid_pages||0)>0);}
 function moneyMiss(){return !!(ah&&ah.money&&ah.money.volume!=null&&ah.money.volume>0&&ah.money.best_position==null);}
 function speedWeakFlag(){return lh.status==='done'&&lh.scores&&lh.scores.perf!=null&&lh.scores.perf<settings().speedWeak;}
-function a11yIssues(){return lh.status==='done'&&lh.scores&&lh.scores.a11y!=null&&lh.scores.a11y<90;}
+function adaWidgetPresent(){return !!(ah&&ah.site&&ah.site.ada_widget);}
+function a11yIssues(){
+  if(adaWidgetPresent())return false; // our ADA widget is already on the site — don't pitch ADA
+  return lh.status==='done'&&lh.scores&&lh.scores.a11y!=null&&lh.scores.a11y<90;
+}
 function seoWeak(){if(!ah)return false;const s=settings();const dr=ah.dr,tr=ah.org_traffic,t3=ah.org_keywords_1_3;
   return (dr!=null&&dr<s.drWeak)||(tr!=null&&tr<s.trafficWeak)||(t3!=null&&t3<s.top3Weak)||moneyMiss();}
 function siteWeak(){return sel.age!=='current'||sel.mobile!=='yes'||speedWeakFlag();}
@@ -183,7 +187,8 @@ function renderLH(){
     +tile('Accessibility',s.a11y,'a11y')
     +tile('SEO checks',s.seo,'lhseo')
     +tile('Best practices',s.best,'lhbest')
-    +'</div>';
+    +'</div>'
+    +(adaWidgetPresent()?'<div style="margin-top:9px;font-size:12px;color:var(--go);background:var(--go-bg);border-radius:8px;padding:8px 11px;">\u2713 Our accessibility widget was detected on this site \u2014 ADA is already handled, so it\u2019s not being pitched.</div>':'');
 }
 function renderMoney(){
   const box=$('moneyBox');
@@ -970,7 +975,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v29';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v30';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
