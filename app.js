@@ -131,15 +131,55 @@ function buildSections(){
 /* ===== scoring ===== */
 function isWordpress(){return !!(ah&&ah.site&&ah.site.wordpress);}
 function adsRunning(){return ah && ((ah.paid_keywords||0)>0 || (ah.paid_pages||0)>0);}
-function moneyMiss(){return !!(ah&&ah.money&&ah.money.volume!=null&&ah.money.volume>0&&ah.money.best_position==null);}
+// Does the client rank for keywords matching the INTENT of the money search,
+// even if not the exact phrase? e.g. money="roof repair oklahoma city" should
+// count "roofing oklahoma city ok" / "oklahoma roofing contractor" as a match.
+function moneyIntentTokens(kw){
+  const stop=new Set(['the','a','an','in','of','for','near','me','to','and','best','top','my','your','ok','repair','service','services','company','companies','contractor','contractors']);
+  return (kw||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>2&&!stop.has(w));
+}
+// stem a word to its first 4+ chars so "roof"~"roofing"~"roofer", "plumb"~"plumbing"
+function stem(w){return w.length<=4?w:w.slice(0,Math.max(4,w.length-3));}
+function tokensOverlap(wantTokens,haveTokens){
+  const haveStems=haveTokens.map(stem);
+  let hits=0;
+  for(const w of wantTokens){const ws=stem(w);if(haveStems.some(h=>h.startsWith(ws)||ws.startsWith(h)))hits++;}
+  return hits;
+}
+function ranksForMoneyIntent(){
+  if(!ah||!ah.money||!ah.top_keywords||!ah.top_keywords.length)return false;
+  const want=moneyIntentTokens(ah.money.keyword);
+  if(want.length<1)return false;
+  return ah.top_keywords.some(k=>{
+    if(k.position==null||k.position>10)return false;
+    return tokensOverlap(want,moneyIntentTokens(k.keyword))>=Math.min(2,want.length);
+  });
+}
+// "missing" only if they don't rank for the exact phrase AND don't rank for the intent
+function moneyMiss(){
+  if(!(ah&&ah.money&&ah.money.volume!=null&&ah.money.volume>0&&ah.money.best_position==null))return false;
+  return !ranksForMoneyIntent();
+}
+// Strong local presence: any top-3 keyword, or several page-one commercial terms.
+// Local businesses routinely rank well on low domain authority, so real rankings
+// override the raw DR/traffic thresholds.
+function seoStrongRankings(){
+  if(!ah)return false;
+  const t3=ah.org_keywords_1_3;
+  if(t3!=null&&t3>=1)return true; // ranks in the top 3 for at least one term
+  const pageOne=(ah.top_keywords||[]).filter(k=>k.position!=null&&k.position<=10).length;
+  return pageOne>=5; // or holds page-one for several searches
+}
+function seoWeak(){if(!ah)return false;const s=settings();const dr=ah.dr,tr=ah.org_traffic,t3=ah.org_keywords_1_3;
+  // If they already rank well locally, SEO is NOT weak regardless of low authority/traffic.
+  if(seoStrongRankings())return false;
+  return (dr!=null&&dr<s.drWeak)||(tr!=null&&tr<s.trafficWeak)||(t3!=null&&t3<s.top3Weak)||moneyMiss();}
 function speedWeakFlag(){return lh.status==='done'&&lh.scores&&lh.scores.perf!=null&&lh.scores.perf<settings().speedWeak;}
 function adaWidgetPresent(){return !!(ah&&ah.site&&ah.site.ada_widget);}
 function a11yIssues(){
   if(adaWidgetPresent())return false; // our ADA widget is already on the site — don't pitch ADA
   return lh.status==='done'&&lh.scores&&lh.scores.a11y!=null&&lh.scores.a11y<90;
 }
-function seoWeak(){if(!ah)return false;const s=settings();const dr=ah.dr,tr=ah.org_traffic,t3=ah.org_keywords_1_3;
-  return (dr!=null&&dr<s.drWeak)||(tr!=null&&tr<s.trafficWeak)||(t3!=null&&t3<s.top3Weak)||moneyMiss();}
 function siteWeak(){return sel.age!=='current'||sel.mobile!=='yes'||speedWeakFlag();}
 function score(){const weak=[];if(siteWeak())weak.push('site');if(seoWeak())weak.push('seo');
   let grade,action;
@@ -189,6 +229,19 @@ function renderLH(){
     +tile('Best practices',s.best,'lhbest')
     +'</div>';
 }
+// per-keyword: do they rank page-one for a term matching THIS keyword's intent?
+function relatedRankFor(keyword){
+  if(!ah||!ah.top_keywords)return null;
+  const want=moneyIntentTokens(keyword);
+  if(want.length<1)return null;
+  const matches=ah.top_keywords.filter(k=>{
+    if(k.position==null||k.position>10)return false;
+    return tokensOverlap(want,moneyIntentTokens(k.keyword))>=Math.min(2,want.length);
+  });
+  if(!matches.length)return null;
+  matches.sort((a,b)=>a.position-b.position);
+  return matches[0]; // strongest related ranking
+}
 function renderMoney(){
   const box=$('moneyBox');
   const list=(ah&&ah.money_list&&ah.money_list.length)?ah.money_list:((ah&&ah.money)?[ah.money]:[]);
@@ -199,6 +252,7 @@ function renderMoney(){
   $('moneyBody').innerHTML=shown.map(m=>{
     const hasData=m.volume!=null;
     const ranks=m.best_position!=null;
+    const related=ranks?null:relatedRankFor(m.keyword); // only look for related if no exact rank
     const cpc=m.cpc!=null?('$'+(m.cpc/100).toFixed(2)):null;
     if(!hasData){
       return '<div class="money" style="margin-bottom:9px;background:var(--skip-bg);border-color:var(--line);">'
@@ -207,14 +261,17 @@ function renderMoney(){
         +'<div class="money-verdict" style="color:var(--ink-soft);">Often means very low local search volume \u2014 worth confirming the wording with the client.</div>'
         +'</div>';
     }
-    return '<div class="money '+(ranks?'money-ok':'money-miss')+'" style="margin-bottom:9px;">'
+    const ok=ranks||!!related;
+    let verdict;
+    if(ranks)verdict='Their site ranks <b>#'+m.best_position+'</b> for this search.';
+    else if(related)verdict='Not ranking for this exact phrase, but they rank <b>#'+related.position+'</b> for the closely related \u201C'+esc(related.keyword)+'\u201D \u2014 so they\u2019re showing up for this search\u2019s intent.';
+    else verdict='Their site was <b>not found</b> in the results for this search.';
+    return '<div class="money '+(ok?'money-ok':'money-miss')+'" style="margin-bottom:9px;">'
       +'<div class="money-kw">\u201C'+esc(m.keyword)+'\u201D</div>'
       // TEMP: CPC hidden — restore by swapping the two lines below
       // +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo'+(cpc?' \u00B7 advertisers pay <b>'+cpc+'</b> per click':'')+'</div>'
       +'<div class="money-stats"><b>'+fmt(m.volume)+'</b> searches/mo</div>'
-      +'<div class="money-verdict">'+(ranks
-        ?'Their site ranks <b>#'+m.best_position+'</b> for this search.'
-        :'Their site was <b>not found</b> in the results for this search.')+'</div>'
+      +'<div class="money-verdict">'+verdict+'</div>'
       +'</div>';
   }).join('');
 }
@@ -529,7 +586,7 @@ function buildReport(){
     ?(' Meanwhile '+compNames.slice(0,2).join(' and ')+(compNames.length>2?' and others':'')+' are showing up'+where+' and taking those calls.')
     :'';
   const findings=[]; // {label, ok, problem, why, fix, service, priority}
-  const moneyMissReport=m&&m.volume!=null&&m.best_position==null;
+  const moneyMissReport=moneyMiss();
   findings.push({
     label:'Showing up on Google',
     ok:!seoWeak(),
@@ -619,22 +676,25 @@ function buildReport(){
           +'</div>';
       }
       const ranks=mk.best_position!=null;
+      const related=ranks?null:relatedRankFor(mk.keyword);
+      const ok=ranks||!!related;
       const val=(mk.volume&&mk.cpc)?Math.round(mk.volume*(mk.cpc/100)):null;
       const stat=(v,l,c)=>'<div style="flex:1;min-width:92px;"><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:'+c+';">'+v+'</div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:'+soft+';margin-top:2px;">'+l+'</div></div>';
-      return '<div style="background:'+(ranks?goBg:badBg)+';border:1px solid '+(ranks?'#CDE5DA':'#F0D4D0')+';border-radius:13px;padding:15px 17px;margin:10px 0;">'
+      let posLabel,posColor,verdict;
+      if(ranks){posLabel='#'+mk.best_position;posColor=go;verdict='Their site appears at <b>#'+mk.best_position+'</b> for this search.'+(mk.best_position>3?' Page-one but below the top 3 \u2014 most clicks go to the first three results, so there\u2019s real room to climb.':'');}
+      else if(related){posLabel='#'+related.position+'*';posColor=go;verdict='They don\u2019t rank for this exact phrase, but they appear at <b>#'+related.position+'</b> for the closely related \u201C'+esc(related.keyword)+'\u201D \u2014 so customers searching this way are finding '+esc(biz)+'.';}
+      else {posLabel='Not found';posColor=bad;verdict='Their site <b>does not appear</b> for this search \u2014 every one of these customers is finding a competitor instead.';}
+      return '<div style="background:'+(ok?goBg:badBg)+';border:1px solid '+(ok?'#CDE5DA':'#F0D4D0')+';border-radius:13px;padding:15px 17px;margin:10px 0;">'
         +'<div style="font-size:16px;font-weight:800;margin-bottom:10px;">\u201C'+esc(mk.keyword)+'\u201D</div>'
         +'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
         +stat(fmt(mk.volume),'searches / month',ink)
         // TEMP: CPC stat hidden from report — uncomment to restore
         // +(mk.cpc!=null?stat('$'+(mk.cpc/100).toFixed(2),'ad cost per click',ink):'')
-        +stat(ranks?('#'+mk.best_position):'Not found','their position',ranks?go:bad)
+        +stat(posLabel,'their position',posColor)
         +'</div>'
-        +'<div style="font-size:12.5px;margin-top:11px;">'+(ranks
-          ?('Their site appears at <b>#'+mk.best_position+'</b> for this search.'+(mk.best_position>3?' Page-one but below the top 3 \u2014 most clicks go to the first three results, so there\u2019s real room to climb.':''))
-          :('Their site <b>does not appear</b> for this search \u2014 every one of these customers is finding a competitor instead.'))
-        +'</div>'
+        +'<div style="font-size:12.5px;margin-top:11px;">'+verdict+'</div>'
         // TEMP: $/month value (derived from CPC) hidden from report — uncomment to restore
-        // +((!ranks&&val)?('<div style="font-size:12px;margin-top:8px;color:'+ink+';border-top:1px solid #F0D4D0;padding-top:8px;">At what advertisers pay per click, that\u2019s roughly <b>$'+fmt(val)+'/month</b> in customer traffic going elsewhere.</div>'):'')
+        // +((!ok&&val)?('<div style="font-size:12px;margin-top:8px;color:'+ink+';border-top:1px solid #F0D4D0;padding-top:8px;">At what advertisers pay per click, that\u2019s roughly <b>$'+fmt(val)+'/month</b> in customer traffic going elsewhere.</div>'):'')
         +'</div>';
     };
     moneyHtml='<h3 style="font-size:14px;margin:24px 0 4px;">The searches that should bring '+esc(biz)+' customers</h3>'
@@ -974,7 +1034,7 @@ function wire(){
 (async function(){
   if(!initClient())return;
   wire();
-  const bt=$('buildTag');if(bt)bt.textContent='Build v31';
+  const bt=$('buildTag');if(bt)bt.textContent='Build v32';
   const rn=$('repName');if(rn)rn.value=localStorage.getItem('mrr_rep')||'';
   await loadPartner();
   const {data}=await sb.auth.getSession();
