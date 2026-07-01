@@ -102,7 +102,7 @@ const METRIC_TIPS={
   contact:'Phone, email, and address pulled from their website (homepage or contact page). Best-effort — give it a quick glance before outreach.',
   rankedfor:'Searches where their site already appears, and at what position. Positions 4–20 are "almost there" — quick wins to pitch.',
   lh:'Four automated checks Google runs on the live site, scored 0–100: speed on a phone, accessibility, basic SEO hygiene, and code best practices.',
-  speed:'How fast the site loads on a phone, per Google\u2019s Lighthouse test. Slow sites lose visitors before they ever call — and Google ranks them lower.',
+  speed:'How fast the site loads on a phone, per Google’s Lighthouse test. Google deliberately throttles this test — it simulates a slower mobile network and a mid-range phone’s slower processor instead of a fast office connection, because that’s closer to how real customers experience the site out in the world. Because of that throttling the score runs harsh: even well-built, modern sites routinely land in the 40–60 range, so a lowish number here is normal and not proof the site is broken. Read it as a directional signal alongside the site’s age and mobile-friendliness — not on its own. That said, genuinely slow sites do lose visitors before they ever call, and Google ranks them lower.',
   a11y:'Automated accessibility checks: alt text, color contrast, form labels, and more. A low score means detectable issues — a fit for an accessibility / ADA pitch. Note: this is not a full legal compliance audit.',
   lhseo:'Google\u2019s basic on-page checks: page titles, descriptions, crawlability. Complements the ranking data above.',
   lhbest:'General code health: HTTPS, broken images, browser errors, outdated libraries.'
@@ -170,7 +170,23 @@ function seoStrongRankings(){
   const pageOne=(ah.top_keywords||[]).filter(k=>k.position!=null&&k.position<=10).length;
   return pageOne>=5; // or holds page-one for several searches
 }
+// A freshly launched (or re-launched) site hasn't accrued Google rankings or organic traffic yet,
+// so Ahrefs reports zeros for every organic metric even when the site is perfectly fine — the data
+// simply lags the launch by days to weeks. That's "too new to score", not "weak SEO". Backlinks/DR
+// are intentionally ignored here: they can carry over from an established domain (or lag too), so
+// the reliable tell is a total absence of organic footprint — no traffic, no rankings anywhere.
+function seoTooNew(){
+  if(!ah)return false;
+  const noTraffic=!(ah.org_traffic>0);
+  const noTop3=!(ah.org_keywords_1_3>0);
+  const noRanked=!((ah.top_keywords||[]).some(k=>k.position!=null));
+  const moneyItems=(ah.money_list&&ah.money_list.length)?ah.money_list:(ah.money?[ah.money]:[]);
+  const noMoneyRank=!moneyItems.some(m=>m&&m.best_position!=null);
+  return noTraffic&&noTop3&&noRanked&&noMoneyRank;
+}
 function seoWeak(){if(!ah)return false;const s=settings();const dr=ah.dr,tr=ah.org_traffic,t3=ah.org_keywords_1_3;
+  // Too new to have any organic data yet → can't call it weak, there's nothing to measure.
+  if(seoTooNew())return false;
   // If they already rank well locally, SEO is NOT weak regardless of low authority/traffic.
   if(seoStrongRankings())return false;
   return (dr!=null&&dr<s.drWeak)||(tr!=null&&tr<s.trafficWeak)||(t3!=null&&t3<s.top3Weak)||moneyMiss();}
@@ -180,7 +196,12 @@ function a11yIssues(){
   if(adaWidgetPresent())return false; // our ADA widget is already on the site — don't pitch ADA
   return lh.status==='done'&&lh.scores&&lh.scores.a11y!=null&&lh.scores.a11y<90;
 }
-function siteWeak(){return sel.age!=='current'||sel.mobile!=='yes'||speedWeakFlag();}
+// Mobile speed is always an "and" condition, never a standalone trigger — Google throttles the
+// mobile test so even modern sites score low, and a slow score alone shouldn't pitch a new site.
+// A site counts as outdated only when slow speed is paired with an aging design or a
+// mobile-friendliness problem: (speed & age) or (speed & mobile).
+function siteWeak(){const dated=sel.age!=='current',notMobile=sel.mobile!=='yes';
+  return speedWeakFlag()&&(dated||notMobile);}
 function score(){const weak=[];if(siteWeak())weak.push('site');if(seoWeak())weak.push('seo');
   let grade,action;
   if(weak.length===0){grade='C';action='Low priority';}
@@ -196,11 +217,15 @@ function pitchList(s){const out=[];
   if(isWordpress())out.push('Targeted landing pages');
   return out;}
 function reasonText(s){const gaps=gapLabels(s.weak);const ads=adsRunning()?' They\u2019re already running Google Ads, so there\u2019s budget to work with.':'';
-  const miss=moneyMiss()?' They\u2019re invisible for their money search — the clearest proof point you have.':'';
+  const miss=(!seoTooNew()&&moneyMiss())?' They\u2019re invisible for their money search — the clearest proof point you have.':'';
   const slow=speedWeakFlag()?(' Google scores their mobile speed '+lh.scores.perf+'/100.'):'';
+  const tooNew=seoTooNew()?' Heads up: SEO can’t be scored yet — the site is too new for Google rankings or organic traffic to register in Ahrefs, so the SEO read is unknown, not strong. Worth re-running in a few weeks.':'';
   if(s.grade==='A')return 'Both gaps present: <b>'+gaps.join(' and ')+'</b>. Clear opportunity — top priority.'+miss+slow+ads;
-  if(s.grade==='C')return 'Website and SEO both look solid. Little to sell — deprioritize.'+ads;
-  return 'Opportunity: <b>'+gaps.join(', ')+'</b>. Solid prospect worth pursuing.'+miss+slow+ads;}
+  if(s.grade==='C'){
+    if(seoTooNew())return 'The website looks solid and there’s no SEO problem to point to yet.'+tooNew+ads;
+    return 'Website and SEO both look solid. Little to sell — deprioritize.'+ads;
+  }
+  return 'Opportunity: <b>'+gaps.join(', ')+'</b>. Solid prospect worth pursuing.'+miss+slow+tooNew+ads;}
 
 /* ===== render ===== */
 function metricCard(k,main,sub,tagLabel,tagCls,tipKey){
@@ -349,10 +374,14 @@ function render(){
   if(ah){const s=settings();
     const drW=ah.dr!=null&&ah.dr<s.drWeak, trW=ah.org_traffic!=null&&ah.org_traffic<s.trafficWeak, kwW=ah.org_keywords_1_3!=null&&ah.org_keywords_1_3<s.top3Weak;
     const ads=adsRunning();
+    // Too new to have organic data → show a neutral "New" badge instead of a red "Weak".
+    const tooNew=seoTooNew();
+    const orgTag=(w)=>tooNew?['New','mid']:(w?['Weak','weak']:['OK','ok']);
+    const drT=orgTag(drW), trT=orgTag(trW), kwT=orgTag(kwW);
     $('readout').innerHTML=
-      metricCard('Site authority',(ah.dr!=null?ah.dr:'—'),'',(ah.dr!=null?(drW?'Weak':'OK'):''),(drW?'weak':'ok'),'authority')
-     +metricCard('Organic traffic',fmt(ah.org_traffic),(ah.org_traffic!=null?'/mo':''),(ah.org_traffic!=null?(trW?'Weak':'OK'):''),(trW?'weak':'ok'),'traffic')
-     +metricCard('Keywords',fmt(ah.org_keywords),(ah.org_keywords_1_3!=null?(ah.org_keywords_1_3+' in top 3'):''),(ah.org_keywords_1_3!=null?(kwW?'Weak':'OK'):''),(kwW?'weak':'ok'),'keywords')
+      metricCard('Site authority',(ah.dr!=null?ah.dr:'—'),'',(ah.dr!=null?drT[0]:''),drT[1],'authority')
+     +metricCard('Organic traffic',fmt(ah.org_traffic),(ah.org_traffic!=null?'/mo':''),(ah.org_traffic!=null?trT[0]:''),trT[1],'traffic')
+     +metricCard('Keywords',fmt(ah.org_keywords),(ah.org_keywords_1_3!=null?(ah.org_keywords_1_3+' in top 3'):''),(ah.org_keywords_1_3!=null?kwT[0]:''),kwT[1],'keywords')
      +metricCard('Referring domains',fmt(ah.live_refdomains),'','','','refdomains')
      +metricCard('Backlinks',fmt(ah.live_backlinks),'','','','backlinks')
      +metricCard('Paid search',(ads?'Running ads':'None'),(ads&&ah.paid_pages?(ah.paid_pages+' '+(ah.paid_pages===1?'page':'pages')):''),(ads?'Budget signal':''),'ads','paid')
