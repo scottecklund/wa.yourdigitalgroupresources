@@ -102,7 +102,7 @@ const METRIC_TIPS={
   contact:'Phone, email, and address pulled from their website (homepage or contact page). Best-effort — give it a quick glance before outreach.',
   rankedfor:'Searches where their site already appears, and at what position. Positions 4–20 are "almost there" — quick wins to pitch.',
   lh:'Four automated checks Google runs on the live site, scored 0–100: speed on a phone, accessibility, basic SEO hygiene, and code best practices.',
-  speed:'How fast the site loads on a phone, per Google\u2019s Lighthouse test. Slow sites lose visitors before they ever call — and Google ranks them lower.',
+  speed:'How fast the site loads on a phone, per Google’s Lighthouse test. Google deliberately throttles this test — it simulates a slower mobile network and a mid-range phone’s slower processor instead of a fast office connection, because that’s closer to how real customers experience the site out in the world. Because of that throttling the score runs harsh: even well-built, modern sites routinely land in the 40–60 range, so a lowish number here is normal and not proof the site is broken. Read it as a directional signal alongside the site’s age and mobile-friendliness — not on its own. That said, genuinely slow sites do lose visitors before they ever call, and Google ranks them lower.',
   a11y:'Automated accessibility checks: alt text, color contrast, form labels, and more. A low score means detectable issues — a fit for an accessibility / ADA pitch. Note: this is not a full legal compliance audit.',
   lhseo:'Google\u2019s basic on-page checks: page titles, descriptions, crawlability. Complements the ranking data above.',
   lhbest:'General code health: HTTPS, broken images, browser errors, outdated libraries.'
@@ -180,7 +180,12 @@ function a11yIssues(){
   if(adaWidgetPresent())return false; // our ADA widget is already on the site — don't pitch ADA
   return lh.status==='done'&&lh.scores&&lh.scores.a11y!=null&&lh.scores.a11y<90;
 }
-function siteWeak(){return sel.age!=='current'||sel.mobile!=='yes'||speedWeakFlag();}
+// Mobile speed is always an "and" condition, never a standalone trigger — Google throttles the
+// mobile test so even modern sites score low, and a slow score alone shouldn't pitch a new site.
+// A site counts as outdated only when slow speed is paired with an aging design or a
+// mobile-friendliness problem: (speed & age) or (speed & mobile).
+function siteWeak(){const dated=sel.age!=='current',notMobile=sel.mobile!=='yes';
+  return speedWeakFlag()&&(dated||notMobile);}
 function score(){const weak=[];if(siteWeak())weak.push('site');if(seoWeak())weak.push('seo');
   let grade,action;
   if(weak.length===0){grade='C';action='Low priority';}
